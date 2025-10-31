@@ -18,16 +18,18 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     user = await User.create({ email, password: hashedPassword, role: role || 'patient', firstName, lastName });
+    console.log('User created:', { id: user.id, role: user.role, email: user.email });
 
    
     if (user.role === 'psychologist') {
-      await Psychologist.create({
+      const psychologist = await Psychologist.create({
         userId: user.id,
         specialization,
-        experience: experience || 0,
+        experience: experience ? Number.parseInt(experience) : 0,
         bio,
-        price: price || 0.00
+        price: price ? Number.parseFloat(price) : 0
       });
+      console.log('Psychologist created:', { id: psychologist.id, userId: psychologist.userId });
     }
 
     const payload = { user: { id: user.id, role: user.role, email: user.email, firstName: user.firstName, lastName: user.lastName } };
@@ -35,7 +37,7 @@ router.post('/register', async (req, res) => {
 
     res.json({ token, user: payload.user });
   } catch (err) {
-    console.error(err.message);
+    console.error('Registration error:', err.message);
     res.status(500).send('Server error');
   }
 });
@@ -63,7 +65,8 @@ router.post('/login', async (req, res) => {
     res.status(500).send('Server error');
   }
 });
-
+
+
 router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
@@ -94,6 +97,7 @@ router.get('/me', auth, async (req, res) => {
     
     res.json(userData);
   } catch (err) {
+    console.error('Get me error:', err.message);
     res.status(500).send('Server Error');
   }
 });
