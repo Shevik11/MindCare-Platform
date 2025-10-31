@@ -12,18 +12,32 @@ import {
   Link,
   VStack,
   HStack,
-  Checkbox
+  Checkbox,
+  Textarea,
+  FormErrorMessage
 } from '@chakra-ui/react';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'patient' });
+  const [form, setForm] = useState({ 
+    firstName: '', 
+    lastName: '', 
+    email: '', 
+    password: '', 
+    role: 'patient',
+    specialization: '',
+    experience: '',
+    bio: '',
+    price: ''
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [agreed, setAgreed] = useState(false);
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const isPasswordShort = form.password && form.password.length > 0 && form.password.length < 8;
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -85,21 +99,55 @@ const RegisterPage = () => {
       </Box>
 
       <VStack as="form" spacing={5} onSubmit={onSubmit} align="stretch">
-        <FormControl isRequired>
-          <FormLabel>Повне ім'я</FormLabel>
-          <Input name="name" placeholder="Іван Петренко" value={form.name} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
-        </FormControl>
+        <HStack spacing={3}>
+          <FormControl isRequired>
+            <FormLabel>Ім'я</FormLabel>
+            <Input name="firstName" placeholder="Іван" value={form.firstName} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
+          </FormControl>
+          <FormControl isRequired>
+            <FormLabel>Прізвище</FormLabel>
+            <Input name="lastName" placeholder="Петренко" value={form.lastName} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
+          </FormControl>
+        </HStack>
 
         <FormControl isRequired>
           <FormLabel>Email</FormLabel>
           <Input type="email" name="email" placeholder="your@email.com" value={form.email} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
         </FormControl>
 
-        <FormControl isRequired>
+        <FormControl isRequired isInvalid={isPasswordShort}>
           <FormLabel>Пароль</FormLabel>
           <Input type="password" name="password" placeholder="••••••••" value={form.password} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
-          <Text color="gray.500" fontSize="sm" mt={1}>Мінімум 8 символів</Text>
+          {!isPasswordShort && (
+            <Text color="gray.500" fontSize="sm" mt={1}>Мінімум 8 символів</Text>
+          )}
+          {isPasswordShort && (
+            <FormErrorMessage>Пароль має містити щонайменше 8 символів</FormErrorMessage>
+          )}
         </FormControl>
+
+        {form.role === 'psychologist' && (
+          <>
+            <FormControl>
+              <FormLabel>Спеціалізація</FormLabel>
+              <Input name="specialization" placeholder="Діти, підлітки, дорослі" value={form.specialization} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
+            </FormControl>
+            <HStack spacing={3}>
+              <FormControl>
+                <FormLabel>Досвід (років)</FormLabel>
+                <Input type="number" name="experience" placeholder="5" value={form.experience} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
+              </FormControl>
+              <FormControl>
+                <FormLabel>Ціна за сесію (₴)</FormLabel>
+                <Input type="number" name="price" placeholder="1000" value={form.price} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" />
+              </FormControl>
+            </HStack>
+            <FormControl>
+              <FormLabel>Про себе</FormLabel>
+              <Textarea name="bio" placeholder="Розкажіть про свій досвід..." value={form.bio} onChange={onChange} size="lg" bg="gray.50" borderRadius="12px" rows={3} />
+            </FormControl>
+          </>
+        )}
 
         <HStack align="start">
           <Checkbox isChecked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
@@ -110,7 +158,7 @@ const RegisterPage = () => {
           </Text>
         </HStack>
 
-        <Button type="submit" size="lg" h="52px" borderRadius="12px" bg="#D32F2F" _hover={{ bg: '#B71C1C' }} color="white" isDisabled={!agreed} isLoading={loading} loadingText="Створюємо...">
+        <Button type="submit" size="lg" h="52px" borderRadius="12px" bg="#D32F2F" _hover={{ bg: '#B71C1C' }} color="white" isDisabled={!agreed || isPasswordShort} isLoading={loading} loadingText="Створюємо...">
           Створити Акаунт
         </Button>
       </VStack>
