@@ -70,12 +70,17 @@ const formatDates = (req, res, next) => {
   const originalJson = res.json.bind(res);
   
   res.json = function(data) {
-    if (Array.isArray(data)) {
-      data = data.map(item => formatObjectDates(item));
-    } else {
-      data = formatObjectDates(data);
+    try {
+      if (Array.isArray(data)) {
+        data = data.map(item => formatObjectDates(item));
+      } else {
+        data = formatObjectDates(data);
+      }
+      return originalJson(data);
+    } catch (err) {
+      console.error('Error formatting dates:', err);
+      return originalJson(data);
     }
-    return originalJson(data);
   };
   
   next();

@@ -4,19 +4,37 @@ const router = express.Router();
 const User = require('../db/models/User');
 const Psychologist = require('../db/models/Psychologist');
 const auth = require('../middleware/auth');
-
+
+
 router.get('/', async (req, res) => {
   try {
     const psychologists = await Psychologist.findAll({
       include: [{ model: User, attributes: ['firstName', 'lastName', 'email', 'role'] }],
      
     });
+    console.log(`Returning ${psychologists.length} psychologists`);
     res.json(psychologists);
   } catch (err) {
+    console.error('Error getting psychologists:', err);
     res.status(500).send('Server Error');
   }
 });
-
+
+router.get('/:id', async (req, res) => {
+  try {
+    const psychologist = await Psychologist.findByPk(req.params.id, {
+      include: [{ model: User, attributes: ['firstName', 'lastName', 'email', 'role'] }]
+    });
+    if (!psychologist) {
+      return res.status(404).json({ msg: 'Psychologist not found' });
+    }
+    res.json(psychologist);
+  } catch (err) {
+    console.error('Error getting psychologist:', err);
+    res.status(500).send('Server Error');
+  }
+});
+
 router.put('/profile', auth, async (req, res) => {
   if (req.user.role !== 'psychologist') {
     return res.status(403).json({ msg: 'Access denied' });
