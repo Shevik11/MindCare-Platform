@@ -7,14 +7,18 @@ const { sequelize } = require('./db/db');
 const app = express();
 app.use(cors());
 app.use(express.json());
-
+
+
 app.use(require('./middleware/formatDate'));
 
 app.use('/api/auth', require('./routers/authRoutes'));
 app.use('/api/psychologists', require('./routers/psychologistRoutes'));
-
+app.use('/api/comments', require('./routers/commentRoutes'));
+
+
 app.get('/', (req, res) => res.send('API Running'));
-
+
+
 // app.use('/api/auth', require('./routes/authRoutes'));
 
 const PORT = process.env.PORT || 5000;

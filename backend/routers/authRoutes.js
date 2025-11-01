@@ -18,7 +18,7 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     user = await User.create({ email, password: hashedPassword, role: role || 'patient', firstName, lastName });
-    console.log('User created:', { id: user.id, role: user.role, email: user.email });
+    console.log('User created:', { id: user.id, role: user.role, email: user.email, firstName: user.firstName, lastName: user.lastName });
 
    
     if (user.role === 'psychologist') {

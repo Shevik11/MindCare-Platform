@@ -9,12 +9,9 @@ import {
   CardBody,
   CardFooter,
   SimpleGrid,
-  Input,
   Select,
   Button,
-  Flex,
   HStack,
-  Stack,
   Badge,
   RangeSlider,
   RangeSliderTrack,
@@ -28,15 +25,17 @@ const PsychologistsPage = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [specialization, setSpecialization] = useState('');
-  const [priceRange, setPriceRange] = useState([500, 1250]);
+  const [priceRange, setPriceRange] = useState([0, 2000]);
   const [minRating, setMinRating] = useState(0);
 
   useEffect(() => {
     const load = async () => {
       try {
         const res = await axios.get('/api/psychologists');
+        console.log('Loaded psychologists:', res.data);
         setItems(res.data || []);
       } catch (e) {
+        console.error('Failed to load psychologists:', e);
         setError('Failed to load');
       } finally {
         setLoading(false);
@@ -48,7 +47,7 @@ const PsychologistsPage = () => {
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     const spec = specialization.trim().toLowerCase();
-    return items.filter((p) => {
+    const result = items.filter((p) => {
       const fullName = p.User ? `${p.User.firstName || ''} ${p.User.lastName || ''}`.toLowerCase() : '';
       const pSpec = (p.specialization || '').toLowerCase();
       const price = Number(p.price ?? 0);
@@ -57,15 +56,29 @@ const PsychologistsPage = () => {
       const matchSpec = !spec || pSpec.includes(spec);
       const matchPrice = price >= priceRange[0] && price <= priceRange[1];
       const matchRating = rating >= minRating;
-      return matchName && matchSpec && matchPrice && matchRating;
+      const passed = matchName && matchSpec && matchPrice && matchRating;
+      
+      if (!passed) {
+        console.log('Filtered out psychologist:', {
+          name: fullName,
+          spec: pSpec,
+          price,
+          rating,
+          filters: { matchName, matchSpec, matchPrice, matchRating }
+        });
+      }
+      
+      return passed;
     });
+    console.log(`Filtered ${result.length} of ${items.length} psychologists`);
+    return result;
   }, [items, search, specialization, priceRange, minRating]);
 
   const specializationOptions = useMemo(() => {
     const set = new Set();
-    items.forEach((p) => {
+    for (const p of items) {
       if (p.specialization) set.add(p.specialization);
-    });
+    }
     return Array.from(set);
   }, [items]);
 
@@ -81,7 +94,11 @@ const PsychologistsPage = () => {
 
       <Box bg="white" border="1px" borderColor="gray.200" rounded="2xl" p={{ base: 4, md: 6 }} mb={10} boxShadow="sm">
         <HStack spacing={2} mb={5} color="gray.700">
-          <Box color="red.500">🔍</Box>
+          <Box color="red.500" w={5} h={5}>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </Box>
           <Text fontWeight="semibold">Фільтри пошуку</Text>
         </HStack>
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
@@ -164,7 +181,19 @@ const PsychologistsPage = () => {
                 {p.price != null && <Text mt={2} fontWeight="semibold">{p.price} грн / сесія</Text>}
               </CardBody>
               <CardFooter>
-                <Button as={Link} to={`/psychologist/${p.id}`} colorScheme="red" w="full">Переглянути Профіль</Button>
+                <Button
+                  as={Link}
+                  to={`/psychologist/${p.id}`}
+                  size="lg"
+                  h="48px"
+                  w="full"
+                  borderRadius="12px"
+                  bg="#D32F2F"
+                  _hover={{ bg: '#B71C1C' }}
+                  color="white"
+                >
+                  Переглянути Профіль
+                </Button>
               </CardFooter>
             </Card>
           );
