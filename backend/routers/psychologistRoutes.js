@@ -1,19 +1,23 @@
 // routes/psychologistRoutes.js
 const express = require('express');
 const router = express.Router();
-const User = require('../db/models/User');
-const Psychologist = require('../db/models/Psychologist');
+const prisma = require('../db/db');
 const auth = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
   try {
-    const psychologists = await Psychologist.findAll({
-      include: [
-        {
-          model: User,
-          attributes: ['firstName', 'lastName', 'email', 'role', 'photoUrl'],
+    const psychologists = await prisma.psychologist.findMany({
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            photoUrl: true,
+          },
         },
-      ],
+      },
     });
     console.log(`Returning ${psychologists.length} psychologists`);
     res.json(psychologists);
@@ -25,13 +29,19 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const psychologist = await Psychologist.findByPk(req.params.id, {
-      include: [
-        {
-          model: User,
-          attributes: ['firstName', 'lastName', 'email', 'role', 'photoUrl'],
+    const psychologist = await prisma.psychologist.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            photoUrl: true,
+          },
         },
-      ],
+      },
     });
     if (!psychologist) {
       return res.status(404).json({ msg: 'Psychologist not found' });
@@ -66,21 +76,31 @@ router.put('/profile', auth, async (req, res) => {
     }
 
     if (Object.keys(userData).length > 0) {
-      await User.update(userData, { where: { id: req.user.id } });
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: userData,
+      });
     }
 
     if (
       req.user.role === 'psychologist' &&
       Object.keys(psychologistData).length > 0
     ) {
-      const [, created] = await Psychologist.findOrCreate({
+      const existingPsychologist = await prisma.psychologist.findUnique({
         where: { userId: req.user.id },
-        defaults: psychologistData,
       });
 
-      if (!created) {
-        await Psychologist.update(psychologistData, {
+      if (existingPsychologist) {
+        await prisma.psychologist.update({
           where: { userId: req.user.id },
+          data: psychologistData,
+        });
+      } else {
+        await prisma.psychologist.create({
+          data: {
+            userId: req.user.id,
+            ...psychologistData,
+          },
         });
       }
     }

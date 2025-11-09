@@ -2,49 +2,32 @@ const request = require('supertest');
 const express = require('express');
 const { mockComment } = require('../mocks/db');
 
-// Create mock models first
-const mockUserModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findByPk: jest.fn(),
-  update: jest.fn(),
+// Create mock Prisma Client
+const mockPrisma = {
+  user: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  psychologist: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+  },
+  comment: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+  },
+  $connect: jest.fn(),
+  $disconnect: jest.fn(),
 };
 
-const mockPsychologistModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findByPk: jest.fn(),
-  update: jest.fn(),
-  findAll: jest.fn(),
-};
-
-const mockCommentModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findByPk: jest.fn(),
-  findAll: jest.fn(),
-};
-
-// Mock db.js which the model files import from
-jest.mock('../../db/db', () => ({
-  User: mockUserModel,
-  Psychologist: mockPsychologistModel,
-  Comment: mockCommentModel,
-  sequelize: {},
-}));
-
-// Mock the model files - they re-export from db, so this should work
-jest.mock('../../db/models/User', () => require('../../db/db').User);
-jest.mock(
-  '../../db/models/Psychologist',
-  () => require('../../db/db').Psychologist
-);
-jest.mock('../../db/models/Comment', () => require('../../db/db').Comment);
+// Mock db.js which exports Prisma Client
+jest.mock('../../db/db', () => mockPrisma);
 
 jest.mock('../../middleware/auth');
 
-const User = require('../../db/models/User');
-const Comment = require('../../db/models/Comment');
+const prisma = require('../../db/db');
 const auth = require('../../middleware/auth');
 
 const app = express();
@@ -61,28 +44,37 @@ describe('Comment Routes', () => {
       const commentsWithUser = [
         {
           ...mockComment,
-          User: {
+          user: {
             firstName: 'Test',
             lastName: 'User',
           },
         },
       ];
 
-      Comment.findAll.mockResolvedValue(commentsWithUser);
+      prisma.comment.findMany.mockResolvedValue(commentsWithUser);
 
       const res = await request(app).get('/api/comments/psychologist/1');
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(Comment.findAll).toHaveBeenCalledWith({
-        where: { psychologistId: '1' },
-        include: [{ model: User, attributes: ['firstName', 'lastName'] }],
-        order: [['createdAt', 'DESC']],
+      expect(prisma.comment.findMany).toHaveBeenCalledWith({
+        where: { psychologistId: 1 },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
       });
     });
 
     it('should return empty array when no comments exist', async () => {
-      Comment.findAll.mockResolvedValue([]);
+      prisma.comment.findMany.mockResolvedValue([]);
 
       const res = await request(app).get('/api/comments/psychologist/1');
 
@@ -91,7 +83,7 @@ describe('Comment Routes', () => {
     });
 
     it('should return 500 on server error', async () => {
-      Comment.findAll.mockRejectedValue(new Error('Database error'));
+      prisma.comment.findMany.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app).get('/api/comments/psychologist/1');
 
@@ -105,14 +97,14 @@ describe('Comment Routes', () => {
         req.user = { id: 1 };
         next();
       });
-      Comment.create.mockResolvedValue(mockComment);
-      Comment.findByPk.mockResolvedValue({
+      const commentWithUser = {
         ...mockComment,
-        User: {
+        user: {
           firstName: 'Test',
           lastName: 'User',
         },
-      });
+      };
+      prisma.comment.create.mockResolvedValue(commentWithUser);
 
       const res = await request(app)
         .post('/api/comments')
@@ -127,11 +119,21 @@ describe('Comment Routes', () => {
       expect(res.body).toHaveProperty('id');
       expect(res.body).toHaveProperty('rating');
       expect(res.body).toHaveProperty('text');
-      expect(Comment.create).toHaveBeenCalledWith({
-        userId: 1,
-        psychologistId: 1,
-        rating: 5,
-        text: 'Great psychologist!',
+      expect(prisma.comment.create).toHaveBeenCalledWith({
+        data: {
+          userId: 1,
+          psychologistId: 1,
+          rating: 5,
+          text: 'Great psychologist!',
+        },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
       });
     });
 
@@ -152,7 +154,7 @@ describe('Comment Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.msg).toBe('Please provide all required fields');
-      expect(Comment.create).not.toHaveBeenCalled();
+      expect(prisma.comment.create).not.toHaveBeenCalled();
     });
 
     it('should return 400 if rating is out of range (less than 1)', async () => {
@@ -218,15 +220,15 @@ describe('Comment Routes', () => {
         req.user = { id: 1 };
         next();
       });
-      Comment.create.mockResolvedValue({ ...mockComment, rating: 1 });
-      Comment.findByPk.mockResolvedValue({
+      const commentWithUser = {
         ...mockComment,
         rating: 1,
-        User: {
+        user: {
           firstName: 'Test',
           lastName: 'User',
         },
-      });
+      };
+      prisma.comment.create.mockResolvedValue(commentWithUser);
 
       const res = await request(app)
         .post('/api/comments')
@@ -245,15 +247,15 @@ describe('Comment Routes', () => {
         req.user = { id: 1 };
         next();
       });
-      Comment.create.mockResolvedValue({ ...mockComment, rating: 5 });
-      Comment.findByPk.mockResolvedValue({
+      const commentWithUser = {
         ...mockComment,
         rating: 5,
-        User: {
+        user: {
           firstName: 'Test',
           lastName: 'User',
         },
-      });
+      };
+      prisma.comment.create.mockResolvedValue(commentWithUser);
 
       const res = await request(app)
         .post('/api/comments')
@@ -272,7 +274,7 @@ describe('Comment Routes', () => {
         req.user = { id: 1 };
         next();
       });
-      Comment.create.mockRejectedValue(new Error('Database error'));
+      prisma.comment.create.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app)
         .post('/api/comments')

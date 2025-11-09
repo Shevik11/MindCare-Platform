@@ -4,37 +4,24 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { mockUser, mockPsychologist } = require('../mocks/db');
 
-// Create mock models first
-const mockUserModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findByPk: jest.fn(),
-  update: jest.fn(),
+// Create mock Prisma Client
+const mockPrisma = {
+  user: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  psychologist: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  $connect: jest.fn(),
+  $disconnect: jest.fn(),
 };
 
-const mockPsychologistModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findByPk: jest.fn(),
-  update: jest.fn(),
-  findAll: jest.fn(),
-  findOrCreate: jest.fn(),
-};
-
-// Mock db.js which the model files import from
-jest.mock('../../db/db', () => ({
-  User: mockUserModel,
-  Psychologist: mockPsychologistModel,
-  Comment: {},
-  sequelize: {},
-}));
-
-// Mock the model files - they re-export from db, so this should work
-jest.mock('../../db/models/User', () => require('../../db/db').User);
-jest.mock(
-  '../../db/models/Psychologist',
-  () => require('../../db/db').Psychologist
-);
+// Mock db.js which exports Prisma Client
+jest.mock('../../db/db', () => mockPrisma);
 
 jest.mock('../../middleware/auth');
 const mockSingleMiddleware = jest.fn((req, res, next) => {
@@ -54,8 +41,7 @@ jest.mock('../../middleware/upload', () => {
 jest.mock('bcryptjs');
 jest.mock('jsonwebtoken');
 
-const User = require('../../db/models/User');
-const Psychologist = require('../../db/models/Psychologist');
+const prisma = require('../../db/db');
 const auth = require('../../middleware/auth');
 
 const app = express();
@@ -83,8 +69,8 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/register', () => {
     it('should register a new patient user', async () => {
-      User.findOne.mockResolvedValue(null);
-      User.create.mockResolvedValue(mockUser);
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(mockUser);
       bcrypt.genSalt.mockResolvedValue('salt');
       bcrypt.hash.mockResolvedValue('hashedPassword');
       jwt.sign.mockReturnValue('test-token');
@@ -102,15 +88,14 @@ describe('Auth Routes', () => {
       expect(res.body).toHaveProperty('user');
       expect(res.body.user.email).toBe('test@example.com');
       expect(res.body.user.role).toBe('patient');
-      expect(User.create).toHaveBeenCalled();
-      expect(Psychologist.create).not.toHaveBeenCalled();
+      expect(prisma.user.create).toHaveBeenCalled();
+      expect(prisma.psychologist.create).not.toHaveBeenCalled();
     });
 
     it('should register a new psychologist user with psychologist profile', async () => {
       const psychologistUser = { ...mockUser, role: 'psychologist' };
-      User.findOne.mockResolvedValue(null);
-      User.create.mockResolvedValue(psychologistUser);
-      Psychologist.create.mockResolvedValue(mockPsychologist);
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(psychologistUser);
       bcrypt.genSalt.mockResolvedValue('salt');
       bcrypt.hash.mockResolvedValue('hashedPassword');
       jwt.sign.mockReturnValue('test-token');
@@ -129,11 +114,23 @@ describe('Auth Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.user.role).toBe('psychologist');
-      expect(Psychologist.create).toHaveBeenCalled();
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            role: 'psychologist',
+            psychologist: expect.objectContaining({
+              create: expect.objectContaining({
+                specialization: 'Clinical Psychology',
+                experience: 5,
+              }),
+            }),
+          }),
+        })
+      );
     });
 
     it('should return 400 if user already exists', async () => {
-      User.findOne.mockResolvedValue(mockUser);
+      prisma.user.findUnique.mockResolvedValue(mockUser);
 
       const res = await request(app).post('/api/auth/register').send({
         email: 'test@example.com',
@@ -142,11 +139,11 @@ describe('Auth Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.msg).toBe('User already exists');
-      expect(User.create).not.toHaveBeenCalled();
+      expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
     it('should return 500 on server error', async () => {
-      User.findOne.mockRejectedValue(new Error('Database error'));
+      prisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app).post('/api/auth/register').send({
         email: 'test@example.com',
@@ -157,8 +154,8 @@ describe('Auth Routes', () => {
     });
 
     it('should use default role "patient" when role is not provided', async () => {
-      User.findOne.mockResolvedValue(null);
-      User.create.mockResolvedValue(mockUser);
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(mockUser);
       bcrypt.genSalt.mockResolvedValue('salt');
       bcrypt.hash.mockResolvedValue('hashedPassword');
       jwt.sign.mockReturnValue('test-token');
@@ -169,18 +166,19 @@ describe('Auth Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      expect(User.create).toHaveBeenCalledWith(
+      expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          role: 'patient',
+          data: expect.objectContaining({
+            role: 'patient',
+          }),
         })
       );
     });
 
     it('should handle psychologist registration with default experience and price', async () => {
       const psychologistUser = { ...mockUser, role: 'psychologist' };
-      User.findOne.mockResolvedValue(null);
-      User.create.mockResolvedValue(psychologistUser);
-      Psychologist.create.mockResolvedValue(mockPsychologist);
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(psychologistUser);
       bcrypt.genSalt.mockResolvedValue('salt');
       bcrypt.hash.mockResolvedValue('hashedPassword');
       jwt.sign.mockReturnValue('test-token');
@@ -194,19 +192,25 @@ describe('Auth Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      expect(Psychologist.create).toHaveBeenCalledWith(
+      expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          experience: 0,
-          price: 0,
+          data: expect.objectContaining({
+            role: 'psychologist',
+            psychologist: expect.objectContaining({
+              create: expect.objectContaining({
+                experience: 0,
+                price: 0,
+              }),
+            }),
+          }),
         })
       );
     });
 
     it('should parse experience and price as numbers for psychologist', async () => {
       const psychologistUser = { ...mockUser, role: 'psychologist' };
-      User.findOne.mockResolvedValue(null);
-      User.create.mockResolvedValue(psychologistUser);
-      Psychologist.create.mockResolvedValue(mockPsychologist);
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(psychologistUser);
       bcrypt.genSalt.mockResolvedValue('salt');
       bcrypt.hash.mockResolvedValue('hashedPassword');
       jwt.sign.mockReturnValue('test-token');
@@ -221,10 +225,16 @@ describe('Auth Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      expect(Psychologist.create).toHaveBeenCalledWith(
+      expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          experience: 10,
-          price: 150.5,
+          data: expect.objectContaining({
+            psychologist: expect.objectContaining({
+              create: expect.objectContaining({
+                experience: 10,
+                price: 150.5,
+              }),
+            }),
+          }),
         })
       );
     });
@@ -232,7 +242,7 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/login', () => {
     it('should login user with valid credentials', async () => {
-      User.findOne.mockResolvedValue(mockUser);
+      prisma.user.findUnique.mockResolvedValue(mockUser);
       bcrypt.compare.mockResolvedValue(true);
       jwt.sign.mockReturnValue('test-token');
 
@@ -251,7 +261,7 @@ describe('Auth Routes', () => {
     });
 
     it('should return 400 if user does not exist', async () => {
-      User.findOne.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       const res = await request(app).post('/api/auth/login').send({
         email: 'nonexistent@example.com',
@@ -263,7 +273,7 @@ describe('Auth Routes', () => {
     });
 
     it('should return 400 if password is incorrect', async () => {
-      User.findOne.mockResolvedValue(mockUser);
+      prisma.user.findUnique.mockResolvedValue(mockUser);
       bcrypt.compare.mockResolvedValue(false);
 
       const res = await request(app).post('/api/auth/login').send({
@@ -276,7 +286,7 @@ describe('Auth Routes', () => {
     });
 
     it('should return 500 on server error', async () => {
-      User.findOne.mockRejectedValue(new Error('Database error'));
+      prisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app).post('/api/auth/login').send({
         email: 'test@example.com',
@@ -293,7 +303,7 @@ describe('Auth Routes', () => {
         req.user = { id: 1, role: 'patient' };
         next();
       });
-      User.findByPk.mockResolvedValue(mockUser);
+      prisma.user.findUnique.mockResolvedValue(mockUser);
 
       const res = await request(app)
         .get('/api/auth/me')
@@ -306,13 +316,16 @@ describe('Auth Routes', () => {
     });
 
     it('should return psychologist data when user is psychologist', async () => {
-      const psychologistUser = { ...mockUser, role: 'psychologist' };
+      const psychologistUser = {
+        ...mockUser,
+        role: 'psychologist',
+        psychologist: mockPsychologist,
+      };
       auth.mockImplementation((req, res, next) => {
         req.user = { id: 1, role: 'psychologist' };
         next();
       });
-      User.findByPk.mockResolvedValue(psychologistUser);
-      Psychologist.findOne.mockResolvedValue(mockPsychologist);
+      prisma.user.findUnique.mockResolvedValue(psychologistUser);
 
       const res = await request(app)
         .get('/api/auth/me')
@@ -328,7 +341,7 @@ describe('Auth Routes', () => {
         req.user = { id: 999 };
         next();
       });
-      User.findByPk.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .get('/api/auth/me')
@@ -343,7 +356,7 @@ describe('Auth Routes', () => {
         req.user = { id: 1 };
         next();
       });
-      User.findByPk.mockRejectedValue(new Error('Database error'));
+      prisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app)
         .get('/api/auth/me')
@@ -358,8 +371,7 @@ describe('Auth Routes', () => {
         req.user = { id: 1, role: 'psychologist' };
         next();
       });
-      User.findByPk.mockResolvedValue(psychologistUser);
-      Psychologist.findOne.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue(psychologistUser);
 
       const res = await request(app)
         .get('/api/auth/me')
@@ -377,7 +389,7 @@ describe('Auth Routes', () => {
         req.user = { id: 1, role: 'patient' };
         next();
       });
-      User.findByPk.mockResolvedValue(userWithPhoto);
+      prisma.user.findUnique.mockResolvedValue(userWithPhoto);
 
       const res = await request(app)
         .get('/api/auth/me')
@@ -411,7 +423,7 @@ describe('Auth Routes', () => {
         next();
       });
 
-      User.update.mockResolvedValue([1]);
+      prisma.user.update.mockResolvedValue(mockUser);
 
       const res = await request(app)
         .post('/api/auth/upload-photo')
@@ -422,10 +434,10 @@ describe('Auth Routes', () => {
       expect(res.body.photoUrl).toBe(
         '/uploads/photo/profilephoto/test-photo.jpg'
       );
-      expect(User.update).toHaveBeenCalledWith(
-        { photoUrl: '/uploads/photo/profilephoto/test-photo.jpg' },
-        { where: { id: 1 } }
-      );
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { photoUrl: '/uploads/photo/profilephoto/test-photo.jpg' },
+      });
     });
 
     it('should return 400 if no file uploaded', async () => {
@@ -468,7 +480,7 @@ describe('Auth Routes', () => {
         next();
       });
 
-      User.update.mockRejectedValue(new Error('Database error'));
+      prisma.user.update.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app)
         .post('/api/auth/upload-photo')
@@ -487,7 +499,7 @@ describe('Auth Routes', () => {
         next();
       });
 
-      User.update.mockRejectedValue(new Error('General error'));
+      prisma.user.update.mockRejectedValue(new Error('General error'));
 
       const res = await request(app)
         .post('/api/auth/upload-photo')

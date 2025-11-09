@@ -2,7 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { sequelize } = require('./db/db');
+const prisma = require('./db/db');
 
 const app = express();
 app.use(cors());
@@ -19,19 +19,24 @@ app.use('/uploads', express.static('uploads'));
 
 app.get('/', (req, res) => res.send('API Running'));
 
-// app.use('/api/auth', require('./routes/authRoutes'));
-
 const PORT = process.env.PORT || 5000;
 
-sequelize
-  .authenticate()
-  .then(() => {
-    console.log('PostgreSQL connected.');
-    return sequelize.sync({ alter: true });
-  })
-  .then(() => {
+// Connect to database and start server
+async function startServer() {
+  try {
+    await prisma.$connect();
+    console.log('PostgreSQL connected via Prisma.');
     app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
-  })
-  .catch(err => {
+  } catch (err) {
     console.error('Unable to connect to the database:', err);
-  });
+    // eslint-disable-next-line no-process-exit
+    process.exit(1);
+  }
+}
+
+startServer();
+
+// Graceful shutdown
+process.on('beforeExit', async () => {
+  await prisma.$disconnect();
+});

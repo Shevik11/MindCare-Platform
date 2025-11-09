@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../db/models/User');
-const Psychologist = require('../db/models/Psychologist');
+const prisma = require('../db/db');
 const auth = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
@@ -22,19 +21,37 @@ router.post('/register', async (req, res) => {
     price,
   } = req.body;
   try {
-    let user = await User.findOne({ where: { email } });
-    if (user) return res.status(400).json({ msg: 'User already exists' });
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser)
+      return res.status(400).json({ msg: 'User already exists' });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = await User.create({
-      email,
-      password: hashedPassword,
-      role: role || 'patient',
-      firstName,
-      lastName,
+    const userRole = role || 'patient';
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        role: userRole,
+        firstName,
+        lastName,
+        ...(userRole === 'psychologist' && {
+          psychologist: {
+            create: {
+              specialization,
+              experience: experience ? Number.parseInt(experience) : 0,
+              bio,
+              price: price ? Number.parseFloat(price) : 0,
+            },
+          },
+        }),
+      },
     });
+
     console.log('User created:', {
       id: user.id,
       role: user.role,
@@ -42,20 +59,6 @@ router.post('/register', async (req, res) => {
       firstName: user.firstName,
       lastName: user.lastName,
     });
-
-    if (user.role === 'psychologist') {
-      const psychologist = await Psychologist.create({
-        userId: user.id,
-        specialization,
-        experience: experience ? Number.parseInt(experience) : 0,
-        bio,
-        price: price ? Number.parseFloat(price) : 0,
-      });
-      console.log('Psychologist created:', {
-        id: psychologist.id,
-        userId: psychologist.userId,
-      });
-    }
 
     const payload = {
       user: {
@@ -81,7 +84,9 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
     if (!user) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
@@ -113,7 +118,12 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      include: {
+        psychologist: true,
+      },
+    });
     if (!user) {
       return res.status(404).json({ msg: 'User not found' });
     }
@@ -127,18 +137,13 @@ router.get('/me', auth, async (req, res) => {
       photoUrl: user.photoUrl,
     };
 
-    if (user.role === 'psychologist') {
-      const psychologist = await Psychologist.findOne({
-        where: { userId: user.id },
-      });
-      if (psychologist) {
-        userData.psychologist = {
-          specialization: psychologist.specialization,
-          experience: psychologist.experience,
-          bio: psychologist.bio,
-          price: psychologist.price,
-        };
-      }
+    if (user.psychologist) {
+      userData.psychologist = {
+        specialization: user.psychologist.specialization,
+        experience: user.psychologist.experience,
+        bio: user.psychologist.bio,
+        price: user.psychologist.price,
+      };
     }
 
     res.json(userData);
@@ -156,7 +161,10 @@ router.post('/upload-photo', auth, upload.single('photo'), async (req, res) => {
 
     const photoUrl = `/uploads/photo/profilephoto/${req.file.filename}`;
 
-    await User.update({ photoUrl }, { where: { id: req.user.id } });
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { photoUrl },
+    });
 
     res.json({ photoUrl });
   } catch (err) {

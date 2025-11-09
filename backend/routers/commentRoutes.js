@@ -1,17 +1,25 @@
 // routes/commentRoutes.js
 const express = require('express');
 const router = express.Router();
-const User = require('../db/models/User');
-const Comment = require('../db/models/Comment');
+const prisma = require('../db/db');
 const auth = require('../middleware/auth');
 
 // GET /api/comments/psychologist/:id - get all comments for a psychologist
 router.get('/psychologist/:id', async (req, res) => {
   try {
-    const comments = await Comment.findAll({
-      where: { psychologistId: req.params.id },
-      include: [{ model: User, attributes: ['firstName', 'lastName'] }],
-      order: [['createdAt', 'DESC']],
+    const comments = await prisma.comment.findMany({
+      where: { psychologistId: parseInt(req.params.id) },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
     res.json(comments);
   } catch (err) {
@@ -35,18 +43,24 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ msg: 'Rating must be between 1 and 5' });
     }
 
-    const comment = await Comment.create({
-      userId: req.user.id,
-      psychologistId,
-      rating,
-      text,
+    const comment = await prisma.comment.create({
+      data: {
+        userId: req.user.id,
+        psychologistId: parseInt(psychologistId),
+        rating: parseInt(rating),
+        text,
+      },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
     });
 
-    const commentWithUser = await Comment.findByPk(comment.id, {
-      include: [{ model: User, attributes: ['firstName', 'lastName'] }],
-    });
-
-    res.status(201).json(commentWithUser);
+    res.status(201).json(comment);
   } catch (err) {
     console.error('Error creating comment:', err);
     res.status(500).send('Server Error');
