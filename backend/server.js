@@ -15,6 +15,7 @@ app.use('/api/psychologists', require('./routers/psychologistRoutes'));
 app.use('/api/comments', require('./routers/commentRoutes'));
 app.use('/api/articles', require('./routers/articleRoutes'));
 app.use('/api/admin', require('./routers/adminRoutes'));
+app.use('/api/appointments', require('./routers/appointmentRoutes'));
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));

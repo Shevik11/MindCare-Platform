@@ -87,10 +87,12 @@ const qualificationStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    // Use req.user.id if available (authenticated user), otherwise use email from body (registration)
+    const userId = req.user?.id || req.body?.email || 'unknown';
     cb(
       null,
       'qualification-' +
-        (req.body?.email || 'unknown') +
+        userId +
         '-' +
         uniqueSuffix +
         path.extname(file.originalname)

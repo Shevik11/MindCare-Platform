@@ -92,10 +92,10 @@ const Header = () => {
                     </HStack>
                   </Button>
                 )}
-                {user?.role === 'psychologist' && (
+                {user?.role === 'patient' && (
                   <Button
                     as={Link}
-                    to="/articles/my"
+                    to="/appointments/my"
                     size="md"
                     h="42px"
                     px={5}
@@ -104,8 +104,38 @@ const Header = () => {
                     color="gray.700"
                     _hover={{ bg: 'gray.100' }}
                   >
-                    Мої статті
+                    Мої записи
                   </Button>
+                )}
+                {user?.role === 'psychologist' && (
+                  <>
+                    <Button
+                      as={Link}
+                      to="/articles/my"
+                      size="md"
+                      h="42px"
+                      px={5}
+                      borderRadius="10px"
+                      variant="ghost"
+                      color="gray.700"
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      Мої статті
+                    </Button>
+                    <Button
+                      as={Link}
+                      to="/appointments/psychologist"
+                      size="md"
+                      h="42px"
+                      px={5}
+                      borderRadius="10px"
+                      variant="ghost"
+                      color="gray.700"
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      Записи
+                    </Button>
+                  </>
                 )}
                 <Button
                   as={Link}

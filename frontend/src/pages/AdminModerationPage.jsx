@@ -27,6 +27,9 @@ import {
   ModalFooter,
   ModalCloseButton,
   useDisclosure,
+  Textarea,
+  FormControl,
+  FormLabel,
 } from '@chakra-ui/react';
 import getImageUrl from '../utils/imageUrl';
 
@@ -43,7 +46,14 @@ const AdminModerationPage = () => {
   );
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [activeTab, setActiveTab] = useState('articles');
+  const [rejectionArticle, setRejectionArticle] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isRejectModalOpen,
+    onOpen: onRejectModalOpen,
+    onClose: onRejectModalClose,
+  } = useDisclosure();
 
   const loadPendingArticles = useCallback(async () => {
     try {
@@ -216,10 +226,36 @@ const AdminModerationPage = () => {
     }
   };
 
-  const handleRejectArticle = async articleId => {
+  const handleRejectArticleClick = article => {
+    setRejectionArticle(article);
+    setRejectionReason('');
+    onRejectModalOpen();
+  };
+
+  const handleRejectArticle = async () => {
+    if (!rejectionArticle || !rejectionReason.trim()) {
+      toast({
+        title: 'Будь ласка, вкажіть причину відхилення',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+        position: 'top',
+        render: ({ onClose }) => (
+          <CustomToast
+            title="Будь ласка, вкажіть причину відхилення"
+            onClose={onClose}
+            status="error"
+          />
+        ),
+      });
+      return;
+    }
+
     try {
-      setProcessingArticleIds(prev => new Set(prev).add(articleId));
-      await axios.post(`/api/admin/articles/${articleId}/reject`);
+      setProcessingArticleIds(prev => new Set(prev).add(rejectionArticle.id));
+      await axios.post(`/api/admin/articles/${rejectionArticle.id}/reject`, {
+        rejectionReason: rejectionReason.trim(),
+      });
       toast({
         title: 'Статтю відхилено',
         status: 'info',
@@ -234,7 +270,12 @@ const AdminModerationPage = () => {
           />
         ),
       });
-      setArticles(prev => prev.filter(article => article.id !== articleId));
+      setArticles(prev =>
+        prev.filter(article => article.id !== rejectionArticle.id)
+      );
+      onRejectModalClose();
+      setRejectionArticle(null);
+      setRejectionReason('');
     } catch (err) {
       console.error('Failed to reject article:', err);
       toast({
@@ -254,7 +295,7 @@ const AdminModerationPage = () => {
     } finally {
       setProcessingArticleIds(prev => {
         const newSet = new Set(prev);
-        newSet.delete(articleId);
+        newSet.delete(rejectionArticle?.id);
         return newSet;
       });
     }
@@ -502,7 +543,8 @@ const AdminModerationPage = () => {
                             alt={article.title}
                             borderRadius="lg"
                             h="200px"
-                            objectFit="cover"
+                            fit="cover"
+                            w="100%"
                           />
                         )}
                         <Box>
@@ -536,7 +578,7 @@ const AdminModerationPage = () => {
                             size="sm"
                             variant="outline"
                             colorScheme="gray"
-                            onClick={() => handleRejectArticle(article.id)}
+                            onClick={() => handleRejectArticleClick(article)}
                             isLoading={processingArticleIds.has(article.id)}
                             flex={1}
                           >
@@ -591,7 +633,7 @@ const AdminModerationPage = () => {
                               }
                               borderRadius="full"
                               boxSize="80px"
-                              objectFit="cover"
+                              fit="cover"
                             />
                           )}
                           <Box flex={1}>
@@ -689,6 +731,65 @@ const AdminModerationPage = () => {
           </Box>
         )}
       </Container>
+
+      {/* Reject Article Modal */}
+      <Modal isOpen={isRejectModalOpen} onClose={onRejectModalClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Відхилити статтю</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Text>
+                Ви впевнені, що хочете відхилити статтю &quot;
+                {rejectionArticle?.title}&quot;?
+              </Text>
+              <FormControl isRequired>
+                <FormLabel>Причина відхилення</FormLabel>
+                <Textarea
+                  value={rejectionReason}
+                  onChange={e => setRejectionReason(e.target.value)}
+                  placeholder="Вкажіть причину відхилення статті..."
+                  rows={5}
+                  resize="vertical"
+                  bg="white"
+                  border="1px"
+                  borderColor="gray.300"
+                  borderRadius="8px"
+                  _focus={{
+                    borderColor: '#D32F2F',
+                    boxShadow: '0 0 0 1px #D32F2F',
+                  }}
+                />
+                <Text color="gray.500" fontSize="sm" mt={1}>
+                  Причина буде відправлена автору статті на email
+                </Text>
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="ghost"
+              onClick={onRejectModalClose}
+              mr={3}
+              borderRadius="12px"
+            >
+              Скасувати
+            </Button>
+            <Button
+              bg="#D32F2F"
+              color="white"
+              _hover={{ bg: '#B71C1C' }}
+              onClick={handleRejectArticle}
+              isLoading={processingArticleIds.has(rejectionArticle?.id)}
+              isDisabled={!rejectionReason.trim()}
+              borderRadius="12px"
+            >
+              Відхилити статтю
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Document Viewer Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">

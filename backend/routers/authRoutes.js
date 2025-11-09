@@ -73,7 +73,7 @@ router.post('/register', async (req, res) => {
       },
     };
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: '1h',
+      expiresIn: '7d', // 7 days for better UX
     });
 
     res.json({ token, user: payload.user });
@@ -109,7 +109,7 @@ router.post('/login', async (req, res) => {
       },
     };
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: '1h',
+      expiresIn: '7d', // 7 days for better UX
     });
 
     res.json({ token, user: payload.user });
@@ -151,12 +151,36 @@ router.put('/settings/email-notifications', auth, async (req, res) => {
   }
 });
 
+// Helper function to generate a new token
+const generateToken = user => {
+  const payload = {
+    user: {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    },
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: '7d', // 7 days for better UX
+  });
+};
+
 router.get('/me', auth, async (req, res) => {
   try {
     const user = await prisma.users.findUnique({
       where: { id: req.user.id },
       include: {
-        Psychologists: true,
+        Psychologists: {
+          include: {
+            QualificationDocuments: {
+              orderBy: {
+                uploadedAt: 'desc',
+              },
+            },
+          },
+        },
       },
     });
     if (!user) {
@@ -179,6 +203,18 @@ router.get('/me', auth, async (req, res) => {
         specialization: psychologist.specialization,
         experience: psychologist.experience,
         bio: psychologist.bio,
+        qualificationDocument: psychologist.qualificationDocument, // Keep for backward compatibility
+        qualificationDocuments:
+          psychologist.QualificationDocuments?.map(doc => ({
+            id: doc.id,
+            filename: doc.filename,
+            fileUrl: doc.fileUrl,
+            fileSize: doc.fileSize,
+            isVerified: doc.isVerified,
+            uploadedAt: doc.uploadedAt,
+            updatedAt: doc.updatedAt,
+          })) || [],
+        updatedAt: psychologist.updatedAt,
         // Convert Prisma Decimal to number for frontend
         price:
           psychologist.price != null
@@ -187,9 +223,40 @@ router.get('/me', auth, async (req, res) => {
       };
     }
 
-    res.json(userData);
+    // Generate a new token and include it in the response
+    // This automatically refreshes the token on every /me request
+    const newToken = generateToken(user);
+    res.json({ ...userData, token: newToken });
   } catch (err) {
     console.error('Get me error:', err.message);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+// POST /api/auth/refresh - Refresh token endpoint
+router.post('/refresh', auth, async (req, res) => {
+  try {
+    const user = await prisma.users.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+
+    // Generate a new token
+    const newToken = generateToken(user);
+
+    res.json({ token: newToken });
+  } catch (err) {
+    console.error('Refresh token error:', err.message);
     res.status(500).json({ msg: 'Server Error' });
   }
 });
@@ -216,7 +283,7 @@ router.post(
       }
 
       // Qualification document is required for psychologists
-      if (!req.file) {
+      if (req.file === null || req.file === undefined) {
         return res
           .status(400)
           .json({ msg: 'Qualification document is required' });
@@ -247,7 +314,15 @@ router.post(
               bio,
               price: price ? Number.parseFloat(price) : 0,
               status: 'pending', // Requires admin approval
-              qualificationDocument: qualificationDocumentUrl,
+              qualificationDocument: qualificationDocumentUrl, // Keep for backward compatibility
+              QualificationDocuments: {
+                create: {
+                  filename: req.file.originalname,
+                  fileUrl: qualificationDocumentUrl,
+                  fileSize: req.file.size,
+                  isVerified: false, // Requires admin verification
+                },
+              },
             },
           },
         },
@@ -320,6 +395,111 @@ router.post('/upload-photo', auth, upload.single('photo'), async (req, res) => {
     if (err.message === 'Only image files are allowed!') {
       return res.status(400).json({ msg: 'Only image files are allowed' });
     }
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+// POST /api/auth/upload-qualification - Upload new qualification document
+router.post(
+  '/upload-qualification',
+  auth,
+  uploadQualification.single('qualificationDocument'),
+  async (req, res) => {
+    try {
+      if (req.user.role !== 'psychologist') {
+        return res
+          .status(403)
+          .json({
+            msg: 'Only psychologists can upload qualification documents',
+          });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ msg: 'No file uploaded' });
+      }
+
+      const qualificationDocumentUrl = `/uploads/qualifications/${req.file.filename}`;
+
+      // Get the psychologist record
+      const psychologist = await prisma.psychologists.findFirst({
+        where: { userId: req.user.id },
+      });
+
+      if (!psychologist) {
+        return res.status(404).json({ msg: 'Psychologist profile not found' });
+      }
+
+      // Create a new qualification document
+      const document = await prisma.qualificationDocument.create({
+        data: {
+          filename: req.file.originalname,
+          fileUrl: qualificationDocumentUrl,
+          fileSize: req.file.size,
+          isVerified: false, // New documents need admin verification
+          psychologistId: psychologist.id,
+        },
+      });
+
+      res.json({
+        id: document.id,
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        isVerified: document.isVerified,
+        uploadedAt: document.uploadedAt,
+      });
+    } catch (err) {
+      console.error('Upload qualification error:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res
+          .status(400)
+          .json({ msg: 'File too large. Maximum size is 10MB' });
+      }
+      res.status(500).json({ msg: 'Server Error' });
+    }
+  }
+);
+
+// DELETE /api/auth/qualification/:id - Delete specific qualification document
+router.delete('/qualification/:id', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'psychologist') {
+      return res
+        .status(403)
+        .json({ msg: 'Only psychologists can delete qualification documents' });
+    }
+
+    const documentId = Number.parseInt(req.params.id, 10);
+
+    // Get the psychologist record
+    const psychologist = await prisma.psychologists.findFirst({
+      where: { userId: req.user.id },
+    });
+
+    if (!psychologist) {
+      return res.status(404).json({ msg: 'Psychologist profile not found' });
+    }
+
+    // Check if the document belongs to this psychologist
+    const document = await prisma.qualificationDocument.findFirst({
+      where: {
+        id: documentId,
+        psychologistId: psychologist.id,
+      },
+    });
+
+    if (!document) {
+      return res.status(404).json({ msg: 'Qualification document not found' });
+    }
+
+    // Delete the document from database (file will be cleaned up later if needed)
+    await prisma.qualificationDocument.delete({
+      where: { id: documentId },
+    });
+
+    res.json({ msg: 'Qualification document deleted successfully' });
+  } catch (err) {
+    console.error('Delete qualification error:', err);
     res.status(500).json({ msg: 'Server Error' });
   }
 });

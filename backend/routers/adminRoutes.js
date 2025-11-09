@@ -739,8 +739,25 @@ router.post('/articles/:id/reject', auth, adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid article ID' });
     }
 
+    const { rejectionReason } = req.body;
+
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return res.status(400).json({ error: "Причина відхилення обов'язкова" });
+    }
+
     const article = await prisma.articles.findUnique({
       where: { id: articleId },
+      include: {
+        Users: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            emailNotifications: true,
+          },
+        },
+      },
     });
 
     if (!article) {
@@ -755,7 +772,10 @@ router.post('/articles/:id/reject', auth, adminAuth, async (req, res) => {
 
     const updatedArticle = await prisma.articles.update({
       where: { id: articleId },
-      data: { status: 'draft' },
+      data: {
+        status: 'draft',
+        rejectionReason: rejectionReason.trim(),
+      },
       include: {
         Users: {
           select: {
@@ -763,10 +783,33 @@ router.post('/articles/:id/reject', auth, adminAuth, async (req, res) => {
             firstName: true,
             lastName: true,
             email: true,
+            emailNotifications: true,
           },
         },
       },
     });
+
+    // Send email notification to article author if email notifications are enabled
+    if (
+      article.Users &&
+      article.Users.email &&
+      article.Users.emailNotifications
+    ) {
+      const { sendArticleRejectionNotification } = require('../utils/email');
+      const authorName =
+        article.Users.firstName && article.Users.lastName
+          ? `${article.Users.firstName} ${article.Users.lastName}`
+          : article.Users.email;
+
+      sendArticleRejectionNotification(
+        article.Users.email,
+        authorName,
+        updatedArticle,
+        rejectionReason.trim()
+      ).catch(err => {
+        console.error('Error sending article rejection email:', err);
+      });
+    }
 
     res.json(updatedArticle);
   } catch (err) {

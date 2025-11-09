@@ -19,9 +19,9 @@ const CustomToast = ({ title, onClose, status = 'success' }) => {
         };
       case 'info':
         return {
-          borderColor: '#3182CE',
-          textColor: '#3182CE',
-          hoverBg: '#3182CE',
+          borderColor: '#D32F2F',
+          textColor: '#D32F2F',
+          hoverBg: '#D32F2F',
         };
       default: // success
         return {

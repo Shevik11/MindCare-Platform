@@ -195,6 +195,15 @@ router.put('/:id', auth, async (req, res) => {
 
     // Handle status update
     let articleStatus = status !== undefined ? status : article.status;
+    let updateData = {
+      title: title !== undefined ? title : article.title,
+      description:
+        description !== undefined ? description : article.description,
+      image: image !== undefined ? image : article.image,
+      readTime: readTime !== undefined ? readTime : article.readTime,
+      author: author !== undefined ? author : article.author,
+      content: htmlContent,
+    };
 
     // If psychologist tries to publish, set status to 'pending' for moderation
     // Psychologists can also directly set status to 'pending' to send for moderation
@@ -203,20 +212,18 @@ router.put('/:id', auth, async (req, res) => {
       articleStatus = 'pending';
     }
 
+    // Clear rejection reason when resubmitting for moderation
+    if (articleStatus === 'pending' && article.rejectionReason) {
+      updateData.rejectionReason = null;
+    }
+
+    updateData.status = articleStatus;
+
     const updatedArticle = await prisma.articles.update({
       where: {
         id: Number.parseInt(req.params.id, 10),
       },
-      data: {
-        title: title !== undefined ? title : article.title,
-        description:
-          description !== undefined ? description : article.description,
-        image: image !== undefined ? image : article.image,
-        readTime: readTime !== undefined ? readTime : article.readTime,
-        author: author !== undefined ? author : article.author,
-        content: htmlContent,
-        status: articleStatus,
-      },
+      data: updateData,
     });
 
     // Send email notifications if article status changed to published

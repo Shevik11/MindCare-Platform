@@ -481,6 +481,49 @@ const MyArticlesPage = () => {
                         </Text>
                       )}
 
+                      {/* Rejection Reason */}
+                      {article.status === 'draft' &&
+                        article.rejectionReason && (
+                          <Box
+                            bg="orange.50"
+                            borderLeft="4px solid"
+                            borderColor="orange.400"
+                            p={3}
+                            borderRadius="8px"
+                            mt={2}
+                          >
+                            <HStack spacing={2} mb={1}>
+                              <Box color="orange.600">
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <circle cx="12" cy="12" r="10" />
+                                  <line x1="12" y1="8" x2="12" y2="12" />
+                                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                                </svg>
+                              </Box>
+                              <Text
+                                color="orange.800"
+                                fontWeight="semibold"
+                                fontSize="sm"
+                              >
+                                Статтю відхилено
+                              </Text>
+                            </HStack>
+                            <Text color="orange.700" fontSize="sm">
+                              <strong>Причина:</strong>{' '}
+                              {article.rejectionReason}
+                            </Text>
+                          </Box>
+                        )}
+
                       {/* Metadata */}
                       <Box>
                         {article.author && (
@@ -503,100 +546,37 @@ const MyArticlesPage = () => {
                       pt={4}
                       borderTop="1px"
                       borderColor="gray.100"
+                      flexWrap="wrap"
                     >
-                      {article.status === 'published' ? (
-                        <>
-                          <Button
-                            onClick={() => navigate(`/article/${article.id}`)}
-                            variant="outline"
-                            borderColor="gray.300"
-                            color="gray.700"
-                            bg="white"
-                            _hover={{ bg: 'gray.50' }}
-                            size="sm"
-                            flex="1"
-                            borderRadius="8px"
-                            leftIcon={
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
-                            }
+                      <Button
+                        onClick={() => navigate(`/articles/${article.id}/edit`)}
+                        variant="outline"
+                        borderColor="#D32F2F"
+                        color="#D32F2F"
+                        bg="white"
+                        _hover={{ bg: 'red.50' }}
+                        size="sm"
+                        flex={{ base: '1 1 100%', sm: '1' }}
+                        minW={{ base: '100%', sm: '0' }}
+                        borderRadius="8px"
+                        leftIcon={
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
                           >
-                            Переглянути
-                          </Button>
-                          <Button
-                            onClick={() =>
-                              navigate(`/articles/${article.id}/edit`)
-                            }
-                            variant="outline"
-                            borderColor="gray.300"
-                            color="gray.700"
-                            bg="white"
-                            _hover={{ bg: 'gray.50' }}
-                            size="sm"
-                            flex="1"
-                            borderRadius="8px"
-                            leftIcon={
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            }
-                          >
-                            Редагувати
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          onClick={() =>
-                            navigate(`/articles/${article.id}/edit`)
-                          }
-                          variant="outline"
-                          borderColor="gray.300"
-                          color="gray.700"
-                          bg="white"
-                          _hover={{ bg: 'gray.50' }}
-                          size="sm"
-                          flex="1"
-                          borderRadius="8px"
-                          leftIcon={
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          }
-                        >
-                          Редагувати
-                        </Button>
-                      )}
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        }
+                      >
+                        Редагувати
+                      </Button>
                       <Menu>
                         <MenuButton
                           as={IconButton}
@@ -624,8 +604,95 @@ const MyArticlesPage = () => {
                           size="sm"
                           borderRadius="8px"
                           aria-label="Додаткові дії"
+                          flexShrink={0}
                         />
                         <MenuList>
+                          <MenuItem
+                            onClick={() => navigate(`/article/${article.id}`)}
+                            icon={
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                            }
+                          >
+                            Переглянути
+                          </MenuItem>
+                          {article.status === 'draft' && (
+                            <MenuItem
+                              onClick={async () => {
+                                try {
+                                  await axios.put(
+                                    `/api/articles/${article.id}`,
+                                    {
+                                      status: 'pending',
+                                    }
+                                  );
+                                  toast({
+                                    title: 'Статтю відправлено на модерацію',
+                                    status: 'success',
+                                    duration: 5000,
+                                    isClosable: true,
+                                    position: 'top',
+                                    render: ({ onClose }) => (
+                                      <CustomToast
+                                        title="Статтю відправлено на модерацію"
+                                        onClose={onClose}
+                                        status="success"
+                                      />
+                                    ),
+                                  });
+                                  loadArticles();
+                                } catch (err) {
+                                  toast({
+                                    title:
+                                      err.response?.data?.error ||
+                                      'Не вдалося відправити статтю',
+                                    status: 'error',
+                                    duration: 5000,
+                                    isClosable: true,
+                                    position: 'top',
+                                    render: ({ onClose }) => (
+                                      <CustomToast
+                                        title={
+                                          err.response?.data?.error ||
+                                          'Не вдалося відправити статтю'
+                                        }
+                                        onClose={onClose}
+                                        status="error"
+                                      />
+                                    ),
+                                  });
+                                }
+                              }}
+                              icon={
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <line x1="22" y1="2" x2="11" y2="13" />
+                                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
+                              }
+                            >
+                              Відправити на модерацію
+                            </MenuItem>
+                          )}
                           <MenuItem
                             onClick={() => handleDeleteClick(article)}
                             icon={

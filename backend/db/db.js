@@ -15,3 +15,5 @@ module.exports = prisma;
 module.exports.User = prisma.users;
 module.exports.Psychologist = prisma.psychologists;
 module.exports.Comment = prisma.comments;
+module.exports.QualificationDocument = prisma.qualificationDocument;
+module.exports.Appointment = prisma.appointments;

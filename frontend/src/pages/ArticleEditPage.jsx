@@ -568,23 +568,60 @@ const ArticleEditPage = () => {
                     )}
 
                     {/* Actions */}
-                    <HStack spacing={4} pt={4} flexWrap="wrap">
-                      {(user?.role === 'psychologist' &&
-                        formData.status !== 'pending') ||
-                      (user?.role === 'admin' &&
-                        formData.status !== 'published') ? (
+                    <VStack spacing={3} pt={4} align="stretch" w="100%">
+                      <HStack spacing={3} flexWrap="wrap" w="100%">
+                        {(user?.role === 'psychologist' &&
+                          formData.status !== 'pending') ||
+                        (user?.role === 'admin' &&
+                          formData.status !== 'published') ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            borderColor="#D32F2F"
+                            color="#D32F2F"
+                            bg="white"
+                            _hover={{ bg: 'red.50', borderColor: '#B71C1C' }}
+                            size={{ base: 'md', md: 'lg' }}
+                            fontSize={{ base: 'sm', md: 'md' }}
+                            isLoading={saving}
+                            onClick={() => handleSubmit(null, true)}
+                            flex={{ base: '1 1 100%', md: '0 1 auto' }}
+                            minW={{ base: '100%', md: 'auto' }}
+                            leftIcon={
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                              </svg>
+                            }
+                          >
+                            {user?.role === 'admin'
+                              ? 'Опублікувати'
+                              : 'Відправити на модерацію'}
+                          </Button>
+                        ) : null}
                         <Button
-                          type="button"
+                          type="submit"
                           bg="#D32F2F"
-                          _hover={{ bg: '#B71C1C' }}
                           color="white"
-                          size="lg"
+                          _hover={{ bg: '#B71C1C' }}
+                          size={{ base: 'md', md: 'lg' }}
+                          fontSize={{ base: 'sm', md: 'md' }}
                           isLoading={saving}
-                          onClick={() => handleSubmit(null, true)}
+                          flex={{ base: '1 1 100%', md: '0 1 auto' }}
+                          minW={{ base: '100%', md: 'auto' }}
                           leftIcon={
                             <svg
-                              width="20"
-                              height="20"
+                              width="18"
+                              height="18"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
@@ -592,53 +629,30 @@ const ArticleEditPage = () => {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
-                              <line x1="22" y1="2" x2="11" y2="13"></line>
-                              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                              <polyline points="7 3 7 8 15 8"></polyline>
                             </svg>
                           }
                         >
-                          {user?.role === 'admin'
-                            ? 'Опублікувати'
-                            : 'Відправити на модерацію'}
+                          {isEdit
+                            ? 'Редагувати статтю'
+                            : 'Зберегти як чернетку'}
                         </Button>
-                      ) : null}
-                      <Button
-                        type="submit"
-                        variant="outline"
-                        borderColor="gray.300"
-                        color="gray.700"
-                        _hover={{ bg: 'gray.50' }}
-                        size="lg"
-                        isLoading={saving}
-                        leftIcon={
-                          <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                            <polyline points="7 3 7 8 15 8"></polyline>
-                          </svg>
-                        }
-                      >
-                        Зберегти як чернетку
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        color="gray.600"
-                        size="lg"
-                        onClick={() => navigate('/')}
-                      >
-                        Скасувати
-                      </Button>
-                    </HStack>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          color="gray.600"
+                          size={{ base: 'md', md: 'lg' }}
+                          fontSize={{ base: 'sm', md: 'md' }}
+                          onClick={() => navigate('/')}
+                          flex={{ base: '1 1 100%', md: '0 1 auto' }}
+                          minW={{ base: '100%', md: 'auto' }}
+                        >
+                          Скасувати
+                        </Button>
+                      </HStack>
+                    </VStack>
                   </VStack>
                 </form>
               </CardBody>

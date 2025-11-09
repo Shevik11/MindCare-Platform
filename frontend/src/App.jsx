@@ -21,6 +21,8 @@ import AdminArticlesManagePage from './pages/AdminArticlesManagePage';
 import AdminPsychologistsPage from './pages/AdminPsychologistsPage';
 import AdminPsychologistDetailsPage from './pages/AdminPsychologistDetailsPage';
 import AdminModerationPage from './pages/AdminModerationPage';
+import MyAppointmentsPage from './pages/MyAppointmentsPage';
+import PsychologistAppointmentsPage from './pages/PsychologistAppointmentsPage';
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -33,6 +35,17 @@ const PsychologistRoute = ({ children }) => {
     return <Navigate to="/login" />;
   }
   if (user?.role !== 'psychologist' && user?.role !== 'admin') {
+    return <Navigate to="/" />;
+  }
+  return children;
+};
+
+const PatientRoute = ({ children }) => {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+  if (user?.role !== 'patient') {
     return <Navigate to="/" />;
   }
   return children;
@@ -142,6 +155,22 @@ function App() {
               <AdminRoute>
                 <AdminPsychologistDetailsPage />
               </AdminRoute>
+            }
+          />
+          <Route
+            path="/appointments/my"
+            element={
+              <PatientRoute>
+                <MyAppointmentsPage />
+              </PatientRoute>
+            }
+          />
+          <Route
+            path="/appointments/psychologist"
+            element={
+              <PsychologistRoute>
+                <PsychologistAppointmentsPage />
+              </PsychologistRoute>
             }
           />
         </Routes>
