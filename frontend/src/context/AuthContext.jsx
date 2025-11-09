@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from 'react';
+import axios from 'axios';
 
 const AuthContext = createContext({
   user: null,
@@ -7,7 +14,7 @@ const AuthContext = createContext({
   isAuthenticated: false,
   login: async () => {},
   register: async () => {},
-  logout: () => {}
+  logout: () => {},
 });
 
 export const AuthProvider = ({ children }) => {
@@ -15,48 +22,71 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("auth_token");
-    const storedUser = localStorage.getItem("auth_user");
+    const storedToken = localStorage.getItem('auth_token');
+    const storedUser = localStorage.getItem('auth_user');
     if (storedToken) setToken(storedToken);
     if (storedUser) {
-      try { setUser(JSON.parse(storedUser)); } catch { setUser(null); }
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        setUser(null);
+      }
     }
   }, []);
 
-  const setAuthState = (nextToken, nextUser) => {
+  const setAuthState = useCallback((nextToken, nextUser) => {
     setToken(nextToken);
     setUser(nextUser ?? null);
-    if (nextToken) localStorage.setItem("auth_token", nextToken); else localStorage.removeItem("auth_token");
-    if (nextUser) localStorage.setItem("auth_user", JSON.stringify(nextUser)); else localStorage.removeItem("auth_user");
-  };
+    if (nextToken) localStorage.setItem('auth_token', nextToken);
+    else localStorage.removeItem('auth_token');
+    if (nextUser) localStorage.setItem('auth_user', JSON.stringify(nextUser));
+    else localStorage.removeItem('auth_user');
+  }, []);
 
-  const login = async (credentials) => {
-    const response = await axios.post("/api/auth/login", credentials);
-    const { token: receivedToken, user: receivedUser } = response.data || {};
-    setAuthState(receivedToken, receivedUser);
-    return response.data;
-  };
+  const login = useCallback(
+    async credentials => {
+      const response = await axios.post('/api/auth/login', credentials);
+      const { token: receivedToken, user: receivedUser } = response.data || {};
+      setAuthState(receivedToken, receivedUser);
+      return response.data;
+    },
+    [setAuthState]
+  );
 
-  const register = async (payload) => {
-    const response = await axios.post("/api/auth/register", payload);
-    const { token: receivedToken, user: receivedUser } = response.data || {};
-    setAuthState(receivedToken, receivedUser);
-    return response.data;
-  };
+  const register = useCallback(
+    async payload => {
+      const response = await axios.post('/api/auth/register', payload);
+      const { token: receivedToken, user: receivedUser } = response.data || {};
+      setAuthState(receivedToken, receivedUser);
+      return response.data;
+    },
+    [setAuthState]
+  );
 
-  const logout = () => { setAuthState(null, null); };
+  const logout = useCallback(() => {
+    setAuthState(null, null);
+  }, [setAuthState]);
 
   useEffect(() => {
-    if (token) axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    else delete axios.defaults.headers.common["Authorization"];
+    if (token)
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    else delete axios.defaults.headers.common['Authorization'];
   }, [token]);
 
-  const value = useMemo(() => ({ user, token, isAuthenticated: Boolean(token), login, register, logout }), [user, token]);
+  const value = useMemo(
+    () => ({
+      user,
+      token,
+      isAuthenticated: Boolean(token),
+      login,
+      register,
+      logout,
+    }),
+    [user, token, login, register, logout]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => useContext(AuthContext);
 export default AuthContext;
-
-

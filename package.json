@@ -1,0 +1,43 @@
+{
+  "name": "mindcare",
+  "version": "1.0.0",
+  "description": "MindCare - Psychology platform",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "test:backend": "cd backend && npm test -- --passWithNoTests",
+    "test:backend:ci": "cd backend && npm test -- --coverage --ci --passWithNoTests",
+    "lint": "eslint . --ext .js,.jsx --ignore-path .gitignore",
+    "lint:fix": "eslint . --ext .js,.jsx --fix --ignore-path .gitignore",
+    "format": "prettier --write \"**/*.{js,jsx,json,md,css,scss}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{js,jsx,json,md,css,scss}\" --ignore-path .gitignore"
+  },
+  "lint-staged": {
+    "backend/**/*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "frontend/**/*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,scss}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-node": "^11.1.0",
+    "prettier": "^3.2.5",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

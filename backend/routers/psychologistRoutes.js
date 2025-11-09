@@ -5,12 +5,15 @@ const User = require('../db/models/User');
 const Psychologist = require('../db/models/Psychologist');
 const auth = require('../middleware/auth');
 
-
 router.get('/', async (req, res) => {
   try {
     const psychologists = await Psychologist.findAll({
-      include: [{ model: User, attributes: ['firstName', 'lastName', 'email', 'role'] }],
-     
+      include: [
+        {
+          model: User,
+          attributes: ['firstName', 'lastName', 'email', 'role', 'photoUrl'],
+        },
+      ],
     });
     console.log(`Returning ${psychologists.length} psychologists`);
     res.json(psychologists);
@@ -23,7 +26,12 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const psychologist = await Psychologist.findByPk(req.params.id, {
-      include: [{ model: User, attributes: ['firstName', 'lastName', 'email', 'role'] }]
+      include: [
+        {
+          model: User,
+          attributes: ['firstName', 'lastName', 'email', 'role', 'photoUrl'],
+        },
+      ],
     });
     if (!psychologist) {
       return res.status(404).json({ msg: 'Psychologist not found' });
@@ -36,50 +44,50 @@ router.get('/:id', async (req, res) => {
 });
 
 router.put('/profile', auth, async (req, res) => {
-  if (req.user.role !== 'psychologist') {
-    return res.status(403).json({ msg: 'Access denied' });
-  }
   try {
-   
     const userFields = ['firstName', 'lastName', 'email'];
     const psychologistFields = ['specialization', 'experience', 'bio', 'price'];
-    
+
     const userData = {};
     const psychologistData = {};
-    
-   
-    Object.keys(req.body).forEach(key => {
+
+    for (const key of Object.keys(req.body)) {
       if (userFields.includes(key)) {
         userData[key] = req.body[key];
       }
-    });
-    
-   
-    Object.keys(req.body).forEach(key => {
-      if (psychologistFields.includes(key)) {
-        psychologistData[key] = req.body[key];
+    }
+
+    if (req.user.role === 'psychologist') {
+      for (const key of Object.keys(req.body)) {
+        if (psychologistFields.includes(key)) {
+          psychologistData[key] = req.body[key];
+        }
       }
-    });
-    
-   
+    }
+
     if (Object.keys(userData).length > 0) {
       await User.update(userData, { where: { id: req.user.id } });
     }
-    
-   
-    if (Object.keys(psychologistData).length > 0) {
-      const [psychologist, created] = await Psychologist.findOrCreate({
+
+    if (
+      req.user.role === 'psychologist' &&
+      Object.keys(psychologistData).length > 0
+    ) {
+      const [, created] = await Psychologist.findOrCreate({
         where: { userId: req.user.id },
-        defaults: psychologistData
+        defaults: psychologistData,
       });
-      
+
       if (!created) {
-        await Psychologist.update(psychologistData, { where: { userId: req.user.id } });
+        await Psychologist.update(psychologistData, {
+          where: { userId: req.user.id },
+        });
       }
     }
 
     res.json({ msg: 'Profile updated' });
   } catch (err) {
+    console.error('Profile update error:', err);
     res.status(500).send('Server Error');
   }
 });

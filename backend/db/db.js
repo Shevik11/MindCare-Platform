@@ -17,9 +17,13 @@ const User = sequelize.define('User', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   email: { type: DataTypes.STRING, unique: true, allowNull: false },
   password: { type: DataTypes.STRING, allowNull: false },
-  role: { type: DataTypes.ENUM('patient', 'psychologist', 'admin'), defaultValue: 'patient' },
+  role: {
+    type: DataTypes.ENUM('patient', 'psychologist', 'admin'),
+    defaultValue: 'patient',
+  },
   firstName: { type: DataTypes.STRING },
   lastName: { type: DataTypes.STRING },
+  photoUrl: { type: DataTypes.STRING },
 });
 
 // Define Psychologist model
@@ -36,7 +40,6 @@ const Comment = sequelize.define('Comment', {
   rating: { type: DataTypes.INTEGER, allowNull: false },
   text: { type: DataTypes.TEXT, allowNull: false },
 });
-
 
 Psychologist.belongsTo(User, { foreignKey: 'userId', unique: true });
 User.hasOne(Psychologist, { foreignKey: 'userId' });

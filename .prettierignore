@@ -1,0 +1,15 @@
+node_modules
+build
+dist
+coverage
+*.min.js
+package-lock.json
+yarn.lock
+.pnp.*
+.yarn/*
+.husky
+backend/uploads
+backend/coverage
+frontend/build
+frontend/dist
+
