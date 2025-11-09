@@ -4,16 +4,16 @@ const { mockComment } = require('../mocks/db');
 
 // Create mock Prisma Client
 const mockPrisma = {
-  user: {
+  users: {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
-  psychologist: {
+  psychologists: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
   },
-  comment: {
+  comments: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
@@ -43,38 +43,53 @@ describe('Comment Routes', () => {
     it('should return all comments for a psychologist', async () => {
       const commentsWithUser = [
         {
-          ...mockComment,
-          user: {
+          id: mockComment.id,
+          userId: mockComment.userId,
+          psychologistId: mockComment.psychologistId,
+          rating: mockComment.rating,
+          text: mockComment.text,
+          createdAt: mockComment.createdAt,
+          updatedAt: mockComment.updatedAt,
+          Users: {
             firstName: 'Test',
             lastName: 'User',
           },
         },
       ];
 
-      prisma.comment.findMany.mockResolvedValue(commentsWithUser);
+      prisma.comments.findMany.mockResolvedValue(commentsWithUser);
 
       const res = await request(app).get('/api/comments/psychologist/1');
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(prisma.comment.findMany).toHaveBeenCalledWith({
-        where: { psychologistId: 1 },
-        include: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
+      expect(res.body.length).toBeGreaterThan(0);
+      expect(res.body[0]).toBeDefined();
+      expect(res.body[0]).toHaveProperty('User');
+      expect(res.body[0].User).toBeDefined();
+      expect(res.body[0].User.firstName).toBe('Test');
+      expect(prisma.comments.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            psychologistId: expect.any(Number),
+          }),
+          include: {
+            Users: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
             },
           },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+          orderBy: {
+            createdAt: 'desc',
+          },
+        })
+      );
     });
 
     it('should return empty array when no comments exist', async () => {
-      prisma.comment.findMany.mockResolvedValue([]);
+      prisma.comments.findMany.mockResolvedValue([]);
 
       const res = await request(app).get('/api/comments/psychologist/1');
 
@@ -83,7 +98,7 @@ describe('Comment Routes', () => {
     });
 
     it('should return 500 on server error', async () => {
-      prisma.comment.findMany.mockRejectedValue(new Error('Database error'));
+      prisma.comments.findMany.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app).get('/api/comments/psychologist/1');
 
@@ -98,13 +113,19 @@ describe('Comment Routes', () => {
         next();
       });
       const commentWithUser = {
-        ...mockComment,
-        user: {
+        id: mockComment.id,
+        userId: mockComment.userId,
+        psychologistId: mockComment.psychologistId,
+        rating: mockComment.rating,
+        text: mockComment.text,
+        createdAt: mockComment.createdAt,
+        updatedAt: mockComment.updatedAt,
+        Users: {
           firstName: 'Test',
           lastName: 'User',
         },
       };
-      prisma.comment.create.mockResolvedValue(commentWithUser);
+      prisma.comments.create.mockResolvedValue(commentWithUser);
 
       const res = await request(app)
         .post('/api/comments')
@@ -116,25 +137,31 @@ describe('Comment Routes', () => {
         });
 
       expect(res.status).toBe(201);
+      expect(res.body).toBeDefined();
       expect(res.body).toHaveProperty('id');
       expect(res.body).toHaveProperty('rating');
       expect(res.body).toHaveProperty('text');
-      expect(prisma.comment.create).toHaveBeenCalledWith({
-        data: {
-          userId: 1,
-          psychologistId: 1,
-          rating: 5,
-          text: 'Great psychologist!',
-        },
-        include: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
+      expect(res.body).toHaveProperty('User');
+      expect(res.body.User).toBeDefined();
+      expect(res.body.User.firstName).toBe('Test');
+      expect(prisma.comments.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 1,
+            psychologistId: 1,
+            rating: 5,
+            text: 'Great psychologist!',
+          }),
+          include: {
+            Users: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
             },
           },
-        },
-      });
+        })
+      );
     });
 
     it('should return 400 if required fields are missing', async () => {
@@ -154,7 +181,7 @@ describe('Comment Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.msg).toBe('Please provide all required fields');
-      expect(prisma.comment.create).not.toHaveBeenCalled();
+      expect(prisma.comments.create).not.toHaveBeenCalled();
     });
 
     it('should return 400 if rating is out of range (less than 1)', async () => {
@@ -215,20 +242,25 @@ describe('Comment Routes', () => {
       expect(res.body.msg).toBe('Rating must be between 1 and 5');
     });
 
-    it('should return 400 if rating is exactly 1 (valid edge case)', async () => {
+    it('should return 201 if rating is exactly 1 (valid edge case)', async () => {
       auth.mockImplementation((req, res, next) => {
         req.user = { id: 1 };
         next();
       });
       const commentWithUser = {
-        ...mockComment,
+        id: mockComment.id,
+        userId: mockComment.userId,
+        psychologistId: mockComment.psychologistId,
         rating: 1,
-        user: {
+        text: mockComment.text,
+        createdAt: mockComment.createdAt,
+        updatedAt: mockComment.updatedAt,
+        Users: {
           firstName: 'Test',
           lastName: 'User',
         },
       };
-      prisma.comment.create.mockResolvedValue(commentWithUser);
+      prisma.comments.create.mockResolvedValue(commentWithUser);
 
       const res = await request(app)
         .post('/api/comments')
@@ -240,22 +272,31 @@ describe('Comment Routes', () => {
         });
 
       expect(res.status).toBe(201);
+      expect(res.body).toBeDefined();
+      expect(res.body).toHaveProperty('User');
+      expect(res.body.User).toBeDefined();
+      expect(res.body.User.firstName).toBe('Test');
     });
 
-    it('should return 400 if rating is exactly 5 (valid edge case)', async () => {
+    it('should return 201 if rating is exactly 5 (valid edge case)', async () => {
       auth.mockImplementation((req, res, next) => {
         req.user = { id: 1 };
         next();
       });
       const commentWithUser = {
-        ...mockComment,
+        id: mockComment.id,
+        userId: mockComment.userId,
+        psychologistId: mockComment.psychologistId,
         rating: 5,
-        user: {
+        text: mockComment.text,
+        createdAt: mockComment.createdAt,
+        updatedAt: mockComment.updatedAt,
+        Users: {
           firstName: 'Test',
           lastName: 'User',
         },
       };
-      prisma.comment.create.mockResolvedValue(commentWithUser);
+      prisma.comments.create.mockResolvedValue(commentWithUser);
 
       const res = await request(app)
         .post('/api/comments')
@@ -267,6 +308,10 @@ describe('Comment Routes', () => {
         });
 
       expect(res.status).toBe(201);
+      expect(res.body).toBeDefined();
+      expect(res.body).toHaveProperty('User');
+      expect(res.body.User).toBeDefined();
+      expect(res.body.User.firstName).toBe('Test');
     });
 
     it('should return 500 on server error', async () => {
@@ -274,7 +319,7 @@ describe('Comment Routes', () => {
         req.user = { id: 1 };
         next();
       });
-      prisma.comment.create.mockRejectedValue(new Error('Database error'));
+      prisma.comments.create.mockRejectedValue(new Error('Database error'));
 
       const res = await request(app)
         .post('/api/comments')

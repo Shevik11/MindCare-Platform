@@ -16,15 +16,22 @@ import {
   Avatar,
   IconButton,
   Textarea,
+  Switch,
+  Text,
+  useToast,
 } from '@chakra-ui/react';
+import CustomToast from '../components/CustomToast';
 
 const ProfilePage = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const [me, setMe] = useState(user);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [updatingNotifications, setUpdatingNotifications] = useState(false);
 
   const [userProfile, setUserProfile] = useState({
     firstName: '',
@@ -49,12 +56,17 @@ const ProfilePage = () => {
           lastName: res.data.lastName || '',
           email: res.data.email || '',
         });
+        setEmailNotifications(res.data.emailNotifications ?? true);
         if (res.data.psychologist) {
           setPsychProfile({
             specialization: res.data.psychologist.specialization || '',
-            experience: res.data.psychologist.experience || 0,
+            experience: res.data.psychologist.experience ?? 0,
             bio: res.data.psychologist.bio || '',
-            price: res.data.psychologist.price || '',
+            price:
+              res.data.psychologist.price === null ||
+              res.data.psychologist.price === undefined
+                ? ''
+                : String(res.data.psychologist.price),
           });
         }
       } catch (e) {
@@ -78,7 +90,24 @@ const ProfilePage = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Будь ласка, оберіть файл зображення');
+      e.target.value = ''; // Clear input
+      return;
+    }
+
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Розмір файлу не повинен перевищувати 10MB');
+      e.target.value = ''; // Clear input
+      return;
+    }
+
     setUploading(true);
+    setError('');
+    setMessage('');
+
     try {
       const formData = new FormData();
       formData.append('photo', file);
@@ -89,8 +118,19 @@ const ProfilePage = () => {
 
       setMe({ ...me, photoUrl: res.data.photoUrl });
       setMessage('Фото оновлено');
+      e.target.value = ''; // Clear input after successful upload
     } catch (err) {
-      setError('Не вдалося завантажити фото');
+      console.error('Photo upload error:', err);
+      if (err.response?.status === 400) {
+        if (err.response.data?.msg?.includes('too large')) {
+          setError('Файл занадто великий. Максимальний розмір: 10MB');
+        } else {
+          setError(err.response.data?.msg || 'Не вдалося завантажити фото');
+        }
+      } else {
+        setError('Не вдалося завантажити фото');
+      }
+      e.target.value = ''; // Clear input on error
     } finally {
       setUploading(false);
     }
@@ -124,6 +164,56 @@ const ProfilePage = () => {
       setError(err?.response?.data?.msg || 'Не вдалося оновити');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEmailNotificationsToggle = async e => {
+    const newValue = e.target.checked;
+    setUpdatingNotifications(true);
+    try {
+      await axios.put('/api/auth/settings/email-notifications', {
+        emailNotifications: newValue,
+      });
+      setEmailNotifications(newValue);
+      setMe({ ...me, emailNotifications: newValue });
+      toast({
+        title: newValue
+          ? 'Email-повідомлення увімкнено'
+          : 'Email-повідомлення вимкнено',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+        position: 'top',
+        render: ({ onClose }) => (
+          <CustomToast
+            title={
+              newValue
+                ? 'Email-повідомлення увімкнено'
+                : 'Email-повідомлення вимкнено'
+            }
+            onClose={onClose}
+            status="success"
+          />
+        ),
+      });
+    } catch (err) {
+      console.error('Failed to update email notifications:', err);
+      toast({
+        title: 'Не вдалося оновити налаштування',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+        position: 'top',
+        render: ({ onClose }) => (
+          <CustomToast
+            title="Не вдалося оновити налаштування"
+            onClose={onClose}
+            status="error"
+          />
+        ),
+      });
+    } finally {
+      setUpdatingNotifications(false);
     }
   };
 
@@ -163,12 +253,13 @@ const ProfilePage = () => {
                   mb={3}
                 />
                 <Box position="absolute" bottom="8px" right="8px">
-                  <Input
+                  <input
                     type="file"
                     accept="image/*"
                     onChange={handlePhotoUpload}
-                    display="none"
+                    style={{ display: 'none' }}
                     id="photo-upload"
+                    disabled={uploading}
                   />
                   <IconButton
                     as="label"
@@ -203,6 +294,7 @@ const ProfilePage = () => {
                     _hover={{ bg: 'red.600' }}
                     cursor="pointer"
                     isLoading={uploading}
+                    disabled={uploading}
                     aria-label="Завантажити фото"
                   />
                 </Box>
@@ -271,6 +363,38 @@ const ProfilePage = () => {
                   </Button>
                 </VStack>
               </form>
+            </VStack>
+          </CardBody>
+        </Card>
+
+        {/* Email Notifications Settings */}
+        <Card mb={6} rounded="2xl" boxShadow="sm">
+          <CardBody>
+            <Heading size="md" mb={6}>
+              Налаштування повідомлень
+            </Heading>
+            <VStack spacing={4} align="stretch">
+              <FormControl
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Box>
+                  <FormLabel mb={1} fontWeight="medium">
+                    Email-повідомлення про нові статті
+                  </FormLabel>
+                  <Text fontSize="sm" color="gray.600">
+                    Отримувати повідомлення на email при публікації нових статей
+                  </Text>
+                </Box>
+                <Switch
+                  isChecked={emailNotifications}
+                  onChange={handleEmailNotificationsToggle}
+                  colorScheme="red"
+                  size="lg"
+                  isDisabled={updatingNotifications}
+                />
+              </FormControl>
             </VStack>
           </CardBody>
         </Card>

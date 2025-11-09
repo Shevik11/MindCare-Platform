@@ -6,9 +6,9 @@ const auth = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
   try {
-    const psychologists = await prisma.psychologist.findMany({
+    const psychologists = await prisma.psychologists.findMany({
       include: {
-        user: {
+        Users: {
           select: {
             firstName: true,
             lastName: true,
@@ -19,20 +19,34 @@ router.get('/', async (req, res) => {
         },
       },
     });
-    console.log(`Returning ${psychologists.length} psychologists`);
-    res.json(psychologists);
+    // Map Users to User for frontend compatibility and convert Decimal to number
+    const mappedPsychologists = psychologists.map(p => {
+      const { Users, price, ...rest } = p;
+      const result = {
+        ...rest,
+        User: Users || null,
+        // Convert Prisma Decimal to number for frontend
+        price: price != null ? parseFloat(price.toString()) : null,
+      };
+      return result;
+    });
+    res.json(mappedPsychologists);
   } catch (err) {
     console.error('Error getting psychologists:', err);
-    res.status(500).send('Server Error');
+    res.status(500).json({
+      error: 'Server Error',
+      message: err.message,
+      code: err.code,
+    });
   }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const psychologist = await prisma.psychologist.findUnique({
+    const psychologist = await prisma.psychologists.findUnique({
       where: { id: parseInt(req.params.id) },
       include: {
-        user: {
+        Users: {
           select: {
             firstName: true,
             lastName: true,
@@ -46,10 +60,18 @@ router.get('/:id', async (req, res) => {
     if (!psychologist) {
       return res.status(404).json({ msg: 'Psychologist not found' });
     }
-    res.json(psychologist);
+    // Map Users to User for frontend compatibility and convert Decimal to number
+    const { Users, price, ...rest } = psychologist;
+    const mappedPsychologist = {
+      ...rest,
+      User: Users || null,
+      // Convert Prisma Decimal to number for frontend
+      price: price != null ? parseFloat(price.toString()) : null,
+    };
+    res.json(mappedPsychologist);
   } catch (err) {
     console.error('Error getting psychologist:', err);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error' });
   }
 });
 
@@ -76,7 +98,7 @@ router.put('/profile', auth, async (req, res) => {
     }
 
     if (Object.keys(userData).length > 0) {
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: req.user.id },
         data: userData,
       });
@@ -86,17 +108,17 @@ router.put('/profile', auth, async (req, res) => {
       req.user.role === 'psychologist' &&
       Object.keys(psychologistData).length > 0
     ) {
-      const existingPsychologist = await prisma.psychologist.findUnique({
+      const existingPsychologist = await prisma.psychologists.findFirst({
         where: { userId: req.user.id },
       });
 
       if (existingPsychologist) {
-        await prisma.psychologist.update({
-          where: { userId: req.user.id },
+        await prisma.psychologists.update({
+          where: { id: existingPsychologist.id },
           data: psychologistData,
         });
       } else {
-        await prisma.psychologist.create({
+        await prisma.psychologists.create({
           data: {
             userId: req.user.id,
             ...psychologistData,
@@ -108,7 +130,7 @@ router.put('/profile', auth, async (req, res) => {
     res.json({ msg: 'Profile updated' });
   } catch (err) {
     console.error('Profile update error:', err);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error' });
   }
 });
 

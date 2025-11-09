@@ -21,16 +21,57 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
 
+  // Load user data from server if token exists
   useEffect(() => {
     const storedToken = localStorage.getItem('auth_token');
     const storedUser = localStorage.getItem('auth_user');
-    if (storedToken) setToken(storedToken);
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        setUser(null);
-      }
+
+    if (storedToken) {
+      setToken(storedToken);
+      // Set Authorization header before making the request
+      axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+
+      // Load user data from server to ensure it's up to date
+      axios
+        .get('/api/auth/me')
+        .then(response => {
+          const userData = response.data;
+          const userObj = {
+            id: userData.id,
+            email: userData.email,
+            role: userData.role,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            photoUrl: userData.photoUrl,
+          };
+          setUser(userObj);
+          localStorage.setItem('auth_user', JSON.stringify(userObj));
+          console.log('User data loaded from server:', userObj);
+        })
+        .catch(error => {
+          console.error('Failed to load user data:', error);
+          // If token is invalid, clear it
+          if (error.response?.status === 401) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            setToken(null);
+            setUser(null);
+            delete axios.defaults.headers.common['Authorization'];
+          } else if (storedUser) {
+            // Fallback to stored user if server request fails (e.g., network error)
+            try {
+              const parsedUser = JSON.parse(storedUser);
+              setUser(parsedUser);
+              console.log('Using stored user data:', parsedUser);
+            } catch {
+              setUser(null);
+            }
+          }
+        });
+    } else if (storedUser) {
+      // If no token but user exists in storage, clear it
+      localStorage.removeItem('auth_user');
+      setUser(null);
     }
   }, []);
 

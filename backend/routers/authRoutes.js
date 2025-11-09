@@ -21,7 +21,7 @@ router.post('/register', async (req, res) => {
     price,
   } = req.body;
   try {
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.users.findUnique({
       where: { email },
     });
     if (existingUser)
@@ -32,7 +32,7 @@ router.post('/register', async (req, res) => {
 
     const userRole = role || 'patient';
 
-    const user = await prisma.user.create({
+    const user = await prisma.users.create({
       data: {
         email,
         password: hashedPassword,
@@ -40,7 +40,7 @@ router.post('/register', async (req, res) => {
         firstName,
         lastName,
         ...(userRole === 'psychologist' && {
-          psychologist: {
+          Psychologists: {
             create: {
               specialization,
               experience: experience ? Number.parseInt(experience) : 0,
@@ -76,7 +76,7 @@ router.post('/register', async (req, res) => {
     res.json({ token, user: payload.user });
   } catch (err) {
     console.error('Registration error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ msg: 'Server error' });
   }
 });
 
@@ -84,7 +84,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { email },
     });
     if (!user) {
@@ -112,16 +112,48 @@ router.post('/login', async (req, res) => {
     res.json({ token, user: payload.user });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// Update email notifications settings
+router.put('/settings/email-notifications', auth, async (req, res) => {
+  try {
+    const { emailNotifications } = req.body;
+
+    if (typeof emailNotifications !== 'boolean') {
+      return res
+        .status(400)
+        .json({ error: 'emailNotifications must be a boolean' });
+    }
+
+    const updatedUser = await prisma.users.update({
+      where: { id: req.user.id },
+      data: { emailNotifications },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        photoUrl: true,
+        emailNotifications: true,
+      },
+    });
+
+    res.json(updatedUser);
+  } catch (err) {
+    console.error('Error updating email notifications settings:', err);
+    res.status(500).json({ error: 'Server Error' });
   }
 });
 
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: req.user.id },
       include: {
-        psychologist: true,
+        Psychologists: true,
       },
     });
     if (!user) {
@@ -135,21 +167,28 @@ router.get('/me', auth, async (req, res) => {
       firstName: user.firstName,
       lastName: user.lastName,
       photoUrl: user.photoUrl,
+      emailNotifications:
+        user.emailNotifications !== undefined ? user.emailNotifications : true,
     };
 
-    if (user.psychologist) {
+    if (user.Psychologists && user.Psychologists.length > 0) {
+      const psychologist = user.Psychologists[0];
       userData.psychologist = {
-        specialization: user.psychologist.specialization,
-        experience: user.psychologist.experience,
-        bio: user.psychologist.bio,
-        price: user.psychologist.price,
+        specialization: psychologist.specialization,
+        experience: psychologist.experience,
+        bio: psychologist.bio,
+        // Convert Prisma Decimal to number for frontend
+        price:
+          psychologist.price != null
+            ? parseFloat(psychologist.price.toString())
+            : null,
       };
     }
 
     res.json(userData);
   } catch (err) {
     console.error('Get me error:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error' });
   }
 });
 
@@ -161,7 +200,7 @@ router.post('/upload-photo', auth, upload.single('photo'), async (req, res) => {
 
     const photoUrl = `/uploads/photo/profilephoto/${req.file.filename}`;
 
-    await prisma.user.update({
+    await prisma.users.update({
       where: { id: req.user.id },
       data: { photoUrl },
     });
@@ -172,7 +211,10 @@ router.post('/upload-photo', auth, upload.single('photo'), async (req, res) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res
         .status(400)
-        .json({ msg: 'File too large. Maximum size is 5MB' });
+        .json({ msg: 'File too large. Maximum size is 10MB' });
+    }
+    if (err.message === 'Only image files are allowed!') {
+      return res.status(400).json({ msg: 'Only image files are allowed' });
     }
     res.status(500).json({ msg: 'Server Error' });
   }

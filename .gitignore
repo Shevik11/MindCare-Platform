@@ -148,3 +148,5 @@ backend/uploads/
 
 # ESLint
 .eslintcache
+
+checkPassword.js

@@ -4,7 +4,9 @@ describe('FormatDate Middleware', () => {
   let req, res, next, originalJson, jsonCallArgs;
 
   beforeEach(() => {
-    req = {};
+    req = {
+      path: '/api/test', // Add path to avoid undefined errors
+    };
     jsonCallArgs = [];
     originalJson = jest.fn(data => {
       jsonCallArgs.push(data);

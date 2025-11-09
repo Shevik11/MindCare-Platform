@@ -34,6 +34,8 @@ const PsychologistsPage = () => {
       try {
         const res = await axios.get('/api/psychologists');
         console.log('Loaded psychologists:', res.data);
+        console.log('First psychologist structure:', res.data?.[0]);
+        console.log('User data in first psychologist:', res.data?.[0]?.User);
         setItems(res.data || []);
       } catch (e) {
         console.error('Failed to load psychologists:', e);
@@ -48,32 +50,55 @@ const PsychologistsPage = () => {
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     const spec = specialization.trim().toLowerCase();
+    console.log('Filtering with:', {
+      s,
+      spec,
+      priceRange,
+      minRating,
+      itemsCount: items.length,
+    });
     const result = items.filter(p => {
       const fullName = p.User
         ? `${p.User.firstName || ''} ${p.User.lastName || ''}`.toLowerCase()
         : '';
       const pSpec = (p.specialization || '').toLowerCase();
-      const price = Number(p.price ?? 0);
-      const rating = Number(p.rating ?? 0);
+      // Price should already be converted to number on backend, but handle edge cases
+      const price = p.price != null ? Number(p.price) : 0;
+      // Note: rating is not stored in psychologists table, it should be calculated from comments
+      // For now, we'll skip rating filter or assume all have rating >= minRating
       const matchName = !s || fullName.includes(s);
       const matchSpec = !spec || pSpec.includes(spec);
-      const matchPrice = price >= priceRange[0] && price <= priceRange[1];
-      const matchRating = rating >= minRating;
+      // If price is 0, null, undefined, or NaN, allow it (treat as 0, which should be in range [0, 2000])
+      const matchPrice =
+        !price ||
+        isNaN(price) ||
+        (price >= priceRange[0] && price <= priceRange[1]);
+      // Skip rating filter for now since rating is not in the table
+      const matchRating = true; // TODO: Calculate rating from comments
       const passed = matchName && matchSpec && matchPrice && matchRating;
 
       if (!passed) {
         console.log('Filtered out psychologist:', {
-          name: fullName,
-          spec: pSpec,
+          id: p.id,
+          fullName,
+          pSpec,
           price,
-          rating,
-          filters: { matchName, matchSpec, matchPrice, matchRating },
+          matchName,
+          matchSpec,
+          matchPrice,
+          matchRating,
+          search: s,
+          specialization: spec,
+          priceRange,
         });
       }
 
       return passed;
     });
     console.log(`Filtered ${result.length} of ${items.length} psychologists`);
+    if (result.length === 0 && items.length > 0) {
+      console.log('All psychologists filtered out. First item:', items[0]);
+    }
     return result;
   }, [items, search, specialization, priceRange, minRating]);
 
@@ -284,11 +309,11 @@ const PsychologistsPage = () => {
                 </HStack>
                 <HStack justify="center" spacing={2}>
                   <Text color="red.500">★★★★★</Text>
-                  <Text color="gray.600">({p.rating ?? '5.0'})</Text>
+                  <Text color="gray.600">(5.0)</Text>
                 </HStack>
-                {p.price != null && (
+                {p.price != null && Number(p.price) > 0 && (
                   <Text mt={2} fontWeight="semibold">
-                    {p.price} грн / сесія
+                    {Number(p.price)} грн / сесія
                   </Text>
                 )}
               </CardBody>

@@ -8,4 +8,10 @@ const prisma = new PrismaClient({
       : ['error'],
 });
 
+// Export Prisma client as default
 module.exports = prisma;
+
+// Export models with singular names for convenience
+module.exports.User = prisma.users;
+module.exports.Psychologist = prisma.psychologists;
+module.exports.Comment = prisma.comments;
