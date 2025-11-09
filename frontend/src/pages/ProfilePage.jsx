@@ -14,6 +14,8 @@ import {
   CardBody,
   Container,
   Avatar,
+  IconButton,
+  Textarea,
 } from '@chakra-ui/react';
 
 const ProfilePage = () => {
@@ -160,17 +162,40 @@ const ProfilePage = () => {
                   }
                   mb={3}
                 />
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  display="none"
-                  id="photo-upload"
-                />
                 <Box position="absolute" bottom="8px" right="8px">
-                  <Button
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    display="none"
+                    id="photo-upload"
+                  />
+                  <IconButton
                     as="label"
                     htmlFor="photo-upload"
+                    icon={
+                      <svg
+                        width="20"
+                        height="20"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                    }
                     size="sm"
                     borderRadius="full"
                     bg="red.500"
@@ -178,34 +203,8 @@ const ProfilePage = () => {
                     _hover={{ bg: 'red.600' }}
                     cursor="pointer"
                     isLoading={uploading}
-                    loadingText="..."
-                    minW="auto"
-                    w="40px"
-                    h="40px"
-                    p={0}
-                  >
-                    <svg
-                      width="20"
-                      height="20"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                  </Button>
+                    aria-label="Завантажити фото"
+                  />
                 </Box>
               </Box>
 
@@ -315,7 +314,7 @@ const ProfilePage = () => {
 
                   <FormControl>
                     <FormLabel>Про себе</FormLabel>
-                    <Input
+                    <Textarea
                       name="bio"
                       value={psychProfile.bio}
                       onChange={onChangePsych}
@@ -324,6 +323,7 @@ const ProfilePage = () => {
                       bg="gray.50"
                       border="none"
                       borderRadius="12px"
+                      rows={4}
                     />
                   </FormControl>
 
