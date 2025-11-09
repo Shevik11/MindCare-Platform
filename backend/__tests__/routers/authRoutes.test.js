@@ -34,8 +34,15 @@ jest.mock('../../middleware/upload', () => {
   const mockSingle = jest.fn(_fieldName => {
     return mockSingleMiddleware;
   });
+  const mockUploadQualification = {
+    single: mockSingle,
+  };
   return {
     single: mockSingle,
+    uploadQualification: mockUploadQualification,
+    uploadArticle: {
+      single: mockSingle,
+    },
   };
 });
 jest.mock('bcryptjs');
@@ -511,6 +518,109 @@ describe('Auth Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.msg).toBe('Server Error');
+    });
+  });
+
+  describe('PUT /api/auth/settings/email-notifications', () => {
+    beforeEach(() => {
+      auth.mockImplementation((req, res, next) => {
+        req.user = { id: 1 };
+        next();
+      });
+    });
+
+    it('should update email notifications settings for authenticated user', async () => {
+      const updatedUser = {
+        id: 1,
+        email: 'user@test.com',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'patient',
+        photoUrl: null,
+        emailNotifications: false,
+      };
+
+      prisma.users.update.mockResolvedValue(updatedUser);
+
+      const res = await request(app)
+        .put('/api/auth/settings/email-notifications')
+        .set('Authorization', 'Bearer test-token')
+        .send({ emailNotifications: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(updatedUser);
+      expect(res.body.emailNotifications).toBe(false);
+      expect(prisma.users.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { emailNotifications: false },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          photoUrl: true,
+          emailNotifications: true,
+        },
+      });
+    });
+
+    it('should enable email notifications', async () => {
+      const updatedUser = {
+        id: 1,
+        email: 'user@test.com',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'patient',
+        photoUrl: null,
+        emailNotifications: true,
+      };
+
+      prisma.users.update.mockResolvedValue(updatedUser);
+
+      const res = await request(app)
+        .put('/api/auth/settings/email-notifications')
+        .set('Authorization', 'Bearer test-token')
+        .send({ emailNotifications: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.emailNotifications).toBe(true);
+    });
+
+    it('should return 400 if emailNotifications is not a boolean', async () => {
+      const res = await request(app)
+        .put('/api/auth/settings/email-notifications')
+        .set('Authorization', 'Bearer test-token')
+        .send({ emailNotifications: 'not-a-boolean' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('emailNotifications must be a boolean');
+      expect(prisma.users.update).not.toHaveBeenCalled();
+    });
+
+    it('should return 401 if not authenticated', async () => {
+      auth.mockImplementation((req, res, _next) => {
+        return res.status(401).json({ msg: 'Not authorized' });
+      });
+
+      const res = await request(app)
+        .put('/api/auth/settings/email-notifications')
+        .send({ emailNotifications: false });
+
+      expect(res.status).toBe(401);
+      expect(prisma.users.update).not.toHaveBeenCalled();
+    });
+
+    it('should return 500 on server error', async () => {
+      prisma.users.update.mockRejectedValue(new Error('Database error'));
+
+      const res = await request(app)
+        .put('/api/auth/settings/email-notifications')
+        .set('Authorization', 'Bearer test-token')
+        .send({ emailNotifications: false });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('Server Error');
     });
   });
 });

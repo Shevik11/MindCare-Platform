@@ -7,6 +7,9 @@ const bcrypt = require('bcryptjs');
 
 // Admin middleware - check if user is admin
 const adminAuth = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden - Admin access required' });
   }
@@ -196,6 +199,57 @@ router.get('/stats', auth, adminAuth, async (req, res) => {
   } catch (err) {
     console.error('Error getting admin stats:', err);
     res.status(500).json({ error: 'Server Error' });
+  }
+});
+
+// Get psychologists pending moderation
+router.get('/psychologists/pending', auth, adminAuth, async (req, res) => {
+  try {
+    const psychologists = await prisma.psychologists.findMany({
+      where: {
+        status: 'pending',
+      },
+      include: {
+        Users: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            photoUrl: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const mappedPsychologists = psychologists.map(p => {
+      const { Users, price, ...rest } = p;
+      return {
+        ...rest,
+        User: Users || null,
+        price: price != null ? Number.parseFloat(price.toString()) : null,
+      };
+    });
+
+    res.json(mappedPsychologists);
+  } catch (err) {
+    console.error('Error getting pending psychologists:', err);
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+      code: err.code,
+    });
+    // Return more detailed error in development, generic in production
+    const errorMessage =
+      process.env.NODE_ENV === 'development' ? err.message : 'Server Error';
+    res.status(500).json({
+      error: 'Server Error',
+      message: errorMessage,
+    });
   }
 });
 
@@ -769,6 +823,103 @@ router.put('/articles/:id/status', auth, adminAuth, async (req, res) => {
     res.json(updatedArticle);
   } catch (err) {
     console.error('Error updating article status:', err);
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
+
+// Approve psychologist (for admin)
+router.post('/psychologists/:id/approve', auth, adminAuth, async (req, res) => {
+  try {
+    const psychologistId = Number.parseInt(req.params.id, 10);
+
+    if (Number.isNaN(psychologistId)) {
+      return res.status(400).json({ error: 'Invalid psychologist ID' });
+    }
+
+    const psychologist = await prisma.psychologists.findUnique({
+      where: { id: psychologistId },
+      include: {
+        Users: true,
+      },
+    });
+
+    if (!psychologist) {
+      return res.status(404).json({ error: 'Psychologist not found' });
+    }
+
+    const updatedPsychologist = await prisma.psychologists.update({
+      where: { id: psychologistId },
+      data: { status: 'approved' },
+      include: {
+        Users: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            photoUrl: true,
+          },
+        },
+      },
+    });
+
+    const { Users, price, ...rest } = updatedPsychologist;
+    const mappedPsychologist = {
+      ...rest,
+      User: Users || null,
+      price: price != null ? parseFloat(price.toString()) : null,
+    };
+
+    res.json(mappedPsychologist);
+  } catch (err) {
+    console.error('Error approving psychologist:', err);
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
+
+// Reject psychologist (for admin)
+router.post('/psychologists/:id/reject', auth, adminAuth, async (req, res) => {
+  try {
+    const psychologistId = Number.parseInt(req.params.id, 10);
+
+    if (Number.isNaN(psychologistId)) {
+      return res.status(400).json({ error: 'Invalid psychologist ID' });
+    }
+
+    const psychologist = await prisma.psychologists.findUnique({
+      where: { id: psychologistId },
+    });
+
+    if (!psychologist) {
+      return res.status(404).json({ error: 'Psychologist not found' });
+    }
+
+    const updatedPsychologist = await prisma.psychologists.update({
+      where: { id: psychologistId },
+      data: { status: 'rejected' },
+      include: {
+        Users: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            photoUrl: true,
+          },
+        },
+      },
+    });
+
+    const { Users, price, ...rest } = updatedPsychologist;
+    const mappedPsychologist = {
+      ...rest,
+      User: Users || null,
+      price: price != null ? parseFloat(price.toString()) : null,
+    };
+
+    res.json(mappedPsychologist);
+  } catch (err) {
+    console.error('Error rejecting psychologist:', err);
     res.status(500).json({ error: 'Server Error' });
   }
 });

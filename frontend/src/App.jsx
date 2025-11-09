@@ -20,6 +20,7 @@ import AdminArticlesPage from './pages/AdminArticlesPage';
 import AdminArticlesManagePage from './pages/AdminArticlesManagePage';
 import AdminPsychologistsPage from './pages/AdminPsychologistsPage';
 import AdminPsychologistDetailsPage from './pages/AdminPsychologistDetailsPage';
+import AdminModerationPage from './pages/AdminModerationPage';
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -100,6 +101,14 @@ function App() {
             element={
               <AdminRoute>
                 <AdminPanel />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/moderation"
+            element={
+              <AdminRoute>
+                <AdminModerationPage />
               </AdminRoute>
             }
           />

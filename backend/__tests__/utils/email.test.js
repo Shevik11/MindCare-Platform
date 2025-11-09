@@ -1,7 +1,7 @@
 // Test email utils
 // Mock dependencies before requiring modules
 jest.mock('nodemailer', () => ({
-  createTransporter: jest.fn(),
+  createTransport: jest.fn(),
 }));
 
 jest.mock('../../db/db', () => {
@@ -41,7 +41,7 @@ describe('email utils', () => {
       sendMail: sendMailMock,
     };
 
-    nodemailer.createTransporter.mockReturnValue(mockTransporter);
+    nodemailer.createTransport.mockReturnValue(mockTransporter);
 
     // Re-require email utils after setting up mocks
     delete require.cache[require.resolve('../../utils/email')];
@@ -80,7 +80,7 @@ describe('email utils', () => {
       );
 
       expect(result).toBe(true);
-      expect(nodemailer.createTransporter).toHaveBeenCalled();
+      expect(nodemailer.createTransport).toHaveBeenCalled();
       expect(sendMailMock).toHaveBeenCalledTimes(1);
 
       const mailOptions = sendMailMock.mock.calls[0][0];

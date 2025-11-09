@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -23,10 +23,11 @@ import {
   ModalCloseButton,
   useDisclosure,
 } from '@chakra-ui/react';
+import axios from 'axios';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, login } = useAuth();
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -38,12 +39,76 @@ const RegisterPage = () => {
     bio: '',
     price: '',
   });
+  const [qualificationFile, setQualificationFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const onChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const validateFile = file => {
+    if (!file) return false;
+
+    // Validate file type
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'application/pdf',
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      setError(
+        'Неправильний тип файлу. Дозволені тільки PDF та зображення (JPEG, PNG, GIF)'
+      );
+      return false;
+    }
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Розмір файлу не повинен перевищувати 10MB');
+      return false;
+    }
+    return true;
+  };
+
+  const handleFileChange = e => {
+    const file = e.target.files[0];
+    if (file && validateFile(file)) {
+      setQualificationFile(file);
+      setError('');
+    }
+  };
+
+  const handleDragOver = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file && validateFile(file)) {
+      setQualificationFile(file);
+      setError('');
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
 
   const isPasswordShort =
     form.password && form.password.length > 0 && form.password.length < 8;
@@ -53,10 +118,66 @@ const RegisterPage = () => {
     setError('');
     setLoading(true);
     try {
-      await register(form);
-      navigate('/psychologists');
+      if (form.role === 'psychologist') {
+        // Use special endpoint for psychologist registration with file upload
+        if (!qualificationFile) {
+          setError('Потрібно завантажити документ про кваліфікацію');
+          setLoading(false);
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('qualificationDocument', qualificationFile);
+        formData.append('email', form.email);
+        formData.append('password', form.password);
+        formData.append('firstName', form.firstName);
+        formData.append('lastName', form.lastName);
+        formData.append('specialization', form.specialization || '');
+        formData.append('experience', form.experience || '0');
+        formData.append('bio', form.bio || '');
+        formData.append('price', form.price || '0');
+
+        const response = await axios.post(
+          '/api/auth/register-psychologist',
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
+
+        const { token: receivedToken, user: receivedUser } =
+          response.data || {};
+        if (receivedToken && receivedUser) {
+          // Update auth context - login will set the token and user
+          await login({ email: form.email, password: form.password });
+        }
+
+        // Show success message
+        if (response.data.message) {
+          setError(''); // Clear any errors
+          // Show success toast (would need toast context)
+          navigate('/profile', {
+            state: {
+              message:
+                'Реєстрацію успішно завершено. Ваш профіль очікує на підтвердження адміністратором.',
+            },
+          });
+        } else {
+          navigate('/psychologists');
+        }
+      } else {
+        // Regular patient registration
+        await register(form);
+        navigate('/psychologists');
+      }
     } catch (err) {
-      setError(err?.response?.data?.msg || 'Registration failed');
+      setError(
+        err?.response?.data?.msg ||
+          err?.response?.data?.error ||
+          'Registration failed'
+      );
     } finally {
       setLoading(false);
     }
@@ -195,6 +316,18 @@ const RegisterPage = () => {
 
         {form.role === 'psychologist' && (
           <>
+            <Box mt={8} mb={6}>
+              <Heading
+                as="h3"
+                size="lg"
+                color="gray.800"
+                fontWeight="semibold"
+                mb={4}
+              >
+                Опишіть свою кваліфікацію та досвід роботи
+              </Heading>
+            </Box>
+
             <FormControl>
               <FormLabel>Спеціалізація</FormLabel>
               <Input
@@ -247,6 +380,102 @@ const RegisterPage = () => {
                 borderRadius="12px"
                 rows={3}
               />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel fontWeight="semibold" color="gray.800" mb={2}>
+                Документ про кваліфікацію{' '}
+                <Text as="span" color="red.500">
+                  *
+                </Text>
+              </FormLabel>
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.gif,application/pdf,image/jpeg,image/png,image/gif"
+                onChange={handleFileChange}
+                display="none"
+              />
+              <Box
+                border="2px dashed"
+                borderColor={isDragging ? '#D32F2F' : 'gray.300'}
+                borderRadius="12px"
+                p={10}
+                textAlign="center"
+                cursor="pointer"
+                bg={isDragging ? 'red.50' : 'white'}
+                transition="all 0.2s"
+                minH="160px"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                _hover={{
+                  borderColor: '#D32F2F',
+                  bg: 'gray.50',
+                }}
+                onClick={handleUploadClick}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <VStack spacing={4}>
+                  <Box
+                    width="64px"
+                    height="64px"
+                    color={isDragging ? '#D32F2F' : 'gray.400'}
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    transition="color 0.2s"
+                  >
+                    <svg
+                      width="64"
+                      height="64"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                  </Box>
+                  <VStack spacing={1}>
+                    <Text
+                      color="#D32F2F"
+                      fontWeight="medium"
+                      fontSize="md"
+                      cursor="pointer"
+                    >
+                      Натисніть для завантаження
+                    </Text>
+                    <Text color="gray.500" fontSize="sm">
+                      або перетягніть файл сюди
+                    </Text>
+                  </VStack>
+                </VStack>
+              </Box>
+              <Text color="gray.500" fontSize="sm" mt={2}>
+                Завантажте документ, що підтверджує вашу кваліфікацію (PDF або
+                зображення, максимум 10MB)
+              </Text>
+              {qualificationFile && (
+                <Box
+                  mt={2}
+                  p={2}
+                  bg="green.50"
+                  borderRadius="8px"
+                  border="1px solid"
+                  borderColor="green.200"
+                >
+                  <Text color="green.700" fontSize="sm" fontWeight="medium">
+                    Файл вибрано: {qualificationFile.name}
+                  </Text>
+                </Box>
+              )}
             </FormControl>
           </>
         )}

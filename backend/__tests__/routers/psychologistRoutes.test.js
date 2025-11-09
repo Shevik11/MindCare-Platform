@@ -46,6 +46,7 @@ describe('Psychologist Routes', () => {
           experience: mockPsychologist.experience,
           bio: mockPsychologist.bio,
           price: mockPsychologist.price,
+          status: 'approved',
           createdAt: mockPsychologist.createdAt,
           updatedAt: mockPsychologist.updatedAt,
           Users: {
@@ -70,6 +71,9 @@ describe('Psychologist Routes', () => {
       expect(res.body[0].User).toBeDefined();
       expect(res.body[0].User.firstName).toBe('Test');
       expect(prisma.psychologists.findMany).toHaveBeenCalledWith({
+        where: {
+          status: 'approved',
+        },
         include: {
           Users: {
             select: {

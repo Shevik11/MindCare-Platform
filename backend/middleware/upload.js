@@ -6,6 +6,7 @@ const fs = require('fs');
 const uploadDirs = {
   profile: path.join(__dirname, '../uploads/photo/profilephoto'),
   articles: path.join(__dirname, '../uploads/articles'),
+  qualifications: path.join(__dirname, '../uploads/qualifications'),
 };
 
 Object.values(uploadDirs).forEach(dir => {
@@ -58,6 +59,45 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// File filter for documents (PDF, images)
+const documentFileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'application/pdf',
+  ];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        'Only PDF and image files (JPEG, PNG, GIF) are allowed for qualification documents!'
+      ),
+      false
+    );
+  }
+};
+
+// Storage for qualification documents
+const qualificationStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDirs.qualifications);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(
+      null,
+      'qualification-' +
+        (req.body?.email || 'unknown') +
+        '-' +
+        uniqueSuffix +
+        path.extname(file.originalname)
+    );
+  },
+});
+
 const upload = multer({
   storage: profileStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
@@ -70,5 +110,12 @@ const uploadArticle = multer({
   fileFilter: fileFilter,
 });
 
+const uploadQualification = multer({
+  storage: qualificationStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for qualification documents
+  fileFilter: documentFileFilter,
+});
+
 module.exports = upload;
 module.exports.uploadArticle = uploadArticle;
+module.exports.uploadQualification = uploadQualification;

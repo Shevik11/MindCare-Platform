@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../db/db');
 const auth = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const uploadQualification = upload.uploadQualification;
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -46,6 +47,8 @@ router.post('/register', async (req, res) => {
               experience: experience ? Number.parseInt(experience) : 0,
               bio,
               price: price ? Number.parseFloat(price) : 0,
+              status: 'pending', // New psychologists need admin approval
+              qualificationDocument: null, // Will be set when document is uploaded
             },
           },
         }),
@@ -167,8 +170,7 @@ router.get('/me', auth, async (req, res) => {
       firstName: user.firstName,
       lastName: user.lastName,
       photoUrl: user.photoUrl,
-      emailNotifications:
-        user.emailNotifications !== undefined ? user.emailNotifications : true,
+      emailNotifications: user.emailNotifications ?? true,
     };
 
     if (user.Psychologists && user.Psychologists.length > 0) {
@@ -180,7 +182,7 @@ router.get('/me', auth, async (req, res) => {
         // Convert Prisma Decimal to number for frontend
         price:
           psychologist.price != null
-            ? parseFloat(psychologist.price.toString())
+            ? Number.parseFloat(psychologist.price.toString())
             : null,
       };
     }
@@ -191,6 +193,108 @@ router.get('/me', auth, async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
+
+// POST /api/auth/register-psychologist - Register psychologist with qualification document
+router.post(
+  '/register-psychologist',
+  uploadQualification.single('qualificationDocument'),
+  async (req, res) => {
+    try {
+      const {
+        email,
+        password,
+        firstName,
+        lastName,
+        specialization,
+        experience,
+        bio,
+        price,
+      } = req.body;
+
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({ msg: 'Missing required fields' });
+      }
+
+      // Qualification document is required for psychologists
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ msg: 'Qualification document is required' });
+      }
+
+      const existingUser = await prisma.users.findUnique({
+        where: { email },
+      });
+      if (existingUser)
+        return res.status(400).json({ msg: 'User already exists' });
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      const qualificationDocumentUrl = `/uploads/qualifications/${req.file.filename}`;
+
+      const user = await prisma.users.create({
+        data: {
+          email,
+          password: hashedPassword,
+          role: 'psychologist',
+          firstName,
+          lastName,
+          Psychologists: {
+            create: {
+              specialization,
+              experience: experience ? Number.parseInt(experience) : 0,
+              bio,
+              price: price ? Number.parseFloat(price) : 0,
+              status: 'pending', // Requires admin approval
+              qualificationDocument: qualificationDocumentUrl,
+            },
+          },
+        },
+      });
+
+      console.log('Psychologist registered (pending approval):', {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      });
+
+      const payload = {
+        user: {
+          id: user.id,
+          role: user.role,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      };
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: '1h',
+      });
+
+      res.json({
+        token,
+        user: payload.user,
+        message:
+          'Реєстрацію успішно завершено. Ваш профіль очікує на підтвердження адміністратором.',
+      });
+    } catch (err) {
+      console.error('Psychologist registration error:', err.message);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res
+          .status(400)
+          .json({ msg: 'File too large. Maximum size is 10MB' });
+      }
+      if (err.message.includes('Only PDF and image files')) {
+        return res.status(400).json({
+          msg: 'Only PDF and image files (JPEG, PNG, GIF) are allowed',
+        });
+      }
+      res.status(500).json({ msg: 'Server error' });
+    }
+  }
+);
 
 router.post('/upload-photo', auth, upload.single('photo'), async (req, res) => {
   try {

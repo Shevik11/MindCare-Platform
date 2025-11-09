@@ -225,9 +225,10 @@ const AdminPanel = () => {
 
   const quickActions = [
     {
-      title: 'Модерація статей',
-      description: 'Перевірити та схвалити статті, які очікують на публікацію',
-      action: () => navigate('/admin/articles'),
+      title: 'Модерація',
+      description:
+        'Перевірити та схвалити статті та профілі психологів, які очікують на публікацію',
+      action: () => navigate('/admin/moderation'),
       icon: (
         <svg
           width="24"

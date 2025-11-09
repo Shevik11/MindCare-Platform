@@ -204,7 +204,7 @@ const ArticleEditPage = () => {
         toast({
           title:
             'Статтю відправлено на модерацію. Адміністратор перевірить статтю перед публікацією',
-          status: 'info',
+          status: 'success',
           duration: 5000,
           isClosable: true,
           position: 'top',
@@ -212,7 +212,7 @@ const ArticleEditPage = () => {
             <CustomToast
               title="Статтю відправлено на модерацію. Адміністратор перевірить статтю перед публікацією"
               onClose={onClose}
-              status="info"
+              status="success"
             />
           ),
         });

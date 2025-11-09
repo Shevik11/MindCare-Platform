@@ -20,16 +20,18 @@ model Comments {
 }
 
 model Psychologists {
-  id             Int        @id @default(autoincrement())
-  specialization String?    @db.VarChar(255)
-  experience     Int?       @default(0)
-  bio            String?
-  price          Decimal?   @default(0) @db.Decimal(10, 2)
-  createdAt      DateTime   @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime   @updatedAt @db.Timestamptz(6)
-  userId         Int?
-  Comments       Comments[]
-  Users          Users?     @relation(fields: [userId], references: [id])
+  id                     Int        @id @default(autoincrement())
+  specialization         String?    @db.VarChar(255)
+  experience             Int?       @default(0)
+  bio                    String?
+  price                  Decimal?   @default(0) @db.Decimal(10, 2)
+  status                 String     @default("pending") @db.VarChar(50)
+  qualificationDocument  String?    @db.VarChar(1000)
+  createdAt              DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime   @updatedAt @db.Timestamptz(6)
+  userId                 Int?
+  Comments               Comments[]
+  Users                  Users?     @relation(fields: [userId], references: [id])
 }
 
 model Users {
@@ -43,24 +45,24 @@ model Users {
   updatedAt          DateTime         @updatedAt @db.Timestamptz(6)
   photoUrl           String?          @db.VarChar(255)
   emailNotifications Boolean          @default(true)
+  Articles           Articles[]
   Comments           Comments[]
   Psychologists      Psychologists[]
-  Articles           Articles[]
 }
 
 model Articles {
-  id          Int       @id @default(autoincrement())
-  title       String    @db.VarChar(500)
-  description String?   @db.Text
-  image       String?   @db.VarChar(1000)
-  readTime    String?   @db.VarChar(50)
-  author      String?   @db.VarChar(255)
-  content     String?   @db.Text
-  status      String    @default("draft") @db.VarChar(50)
-  createdAt   DateTime  @db.Timestamptz(6) @default(now())
-  updatedAt   DateTime  @db.Timestamptz(6) @updatedAt
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(500)
+  description String?
+  image       String?  @db.VarChar(1000)
+  readTime    String?  @db.VarChar(50)
+  author      String?  @db.VarChar(255)
+  content     String?
+  status      String   @default("draft") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
   userId      Int?
-  Users       Users?    @relation(fields: [userId], references: [id])
+  Users       Users?   @relation(fields: [userId], references: [id])
 }
 
 enum enum_Users_role {

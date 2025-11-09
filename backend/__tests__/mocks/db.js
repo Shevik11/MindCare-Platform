@@ -30,6 +30,7 @@ const mockPsychologist = {
   experience: 5,
   bio: 'Test bio',
   price: 100.0,
+  status: 'approved',
   createdAt: new Date(),
   updatedAt: new Date(),
   toJSON: function () {
@@ -40,6 +41,7 @@ const mockPsychologist = {
       experience: this.experience,
       bio: this.bio,
       price: this.price,
+      status: this.status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

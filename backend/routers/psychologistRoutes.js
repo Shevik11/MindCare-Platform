@@ -6,7 +6,11 @@ const auth = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
   try {
+    // Only show approved psychologists to regular users
     const psychologists = await prisma.psychologists.findMany({
+      where: {
+        status: 'approved',
+      },
       include: {
         Users: {
           select: {
