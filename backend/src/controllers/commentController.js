@@ -1,9 +1,6 @@
-const express = require('express');
-const router = express.Router();
-const prisma = require('../db/db');
-const auth = require('../middleware/auth');
+const prisma = require('../config/database');
 
-router.get('/psychologist/:id', async (req, res) => {
+const getCommentsByPsychologist = async (req, res) => {
   try {
     const comments = await prisma.comments.findMany({
       where: { psychologistId: parseInt(req.params.id) },
@@ -31,9 +28,9 @@ router.get('/psychologist/:id', async (req, res) => {
     console.error('Error getting comments:', err);
     res.status(500).json({ msg: 'Server Error' });
   }
-});
+};
 
-router.post('/', auth, async (req, res) => {
+const createComment = async (req, res) => {
   try {
     const { psychologistId, rating, text } = req.body;
 
@@ -75,6 +72,9 @@ router.post('/', auth, async (req, res) => {
     console.error('Error creating comment:', err);
     res.status(500).json({ msg: 'Server Error' });
   }
-});
+};
 
-module.exports = router;
+module.exports = {
+  getCommentsByPsychologist,
+  createComment,
+};
