@@ -1,33 +1,25 @@
-// routes/appointmentRoutes.js
 const express = require('express');
 const router = express.Router();
 const prisma = require('../db/db');
 const auth = require('../middleware/auth');
 const { sendAppointmentNotificationEmail } = require('../utils/email');
 
-// Helper function to generate available time slots
-// Generates slots from today to 30 days ahead, 9:00 to 18:00, every hour
 const generateAvailableSlots = () => {
   const slots = [];
   const now = new Date();
   const endDate = new Date(now);
-  endDate.setDate(endDate.getDate() + 30); // 30 days ahead
+  endDate.setDate(endDate.getDate() + 30);
 
-  // Start from today, or next day if it's already past working hours
   const currentDate = new Date(now);
-  currentDate.setHours(0, 0, 0, 0); // Start of day
+  currentDate.setHours(0, 0, 0, 0);
 
   while (currentDate <= endDate) {
-    // Skip weekends (Saturday = 6, Sunday = 0)
     const dayOfWeek = currentDate.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      // Only weekdays
       for (let hour = 9; hour < 18; hour++) {
-        // 9:00 to 17:00
         const slot = new Date(currentDate);
         slot.setHours(hour, 0, 0, 0);
 
-        // Only add future slots (at least 1 hour from now)
         const oneHourFromNow = new Date(now);
         oneHourFromNow.setHours(oneHourFromNow.getHours() + 1);
         if (slot >= oneHourFromNow) {
@@ -40,13 +32,10 @@ const generateAvailableSlots = () => {
 
   return slots;
 };
-
-// GET /api/appointments/slots/:psychologistId - Get available time slots
 router.get('/slots/:psychologistId', auth, async (req, res) => {
   try {
     const psychologistId = Number.parseInt(req.params.psychologistId, 10);
 
-    // Verify psychologist exists and is approved
     const psychologist = await prisma.psychologists.findFirst({
       where: {
         id: psychologistId,
@@ -58,15 +47,14 @@ router.get('/slots/:psychologistId', auth, async (req, res) => {
       return res.status(404).json({ msg: 'Psychologist not found' });
     }
 
-    // Get all existing appointments for this psychologist
     const existingAppointments = await prisma.appointments.findMany({
       where: {
         psychologistId: psychologistId,
         status: {
-          in: ['scheduled', 'completed'], // Don't include cancelled
+          in: ['scheduled', 'completed'],
         },
         appointmentDateTime: {
-          gte: new Date(), // Only future appointments
+          gte: new Date(),
         },
       },
       select: {
@@ -74,10 +62,8 @@ router.get('/slots/:psychologistId', auth, async (req, res) => {
       },
     });
 
-    // Generate all possible slots
     const allSlots = generateAvailableSlots();
 
-    // Filter out booked slots
     const bookedTimes = new Set(
       existingAppointments.map(apt =>
         new Date(apt.appointmentDateTime).toISOString()
@@ -89,7 +75,6 @@ router.get('/slots/:psychologistId', auth, async (req, res) => {
       return !bookedTimes.has(slotTime);
     });
 
-    // Group slots by date
     const slotsByDate = {};
     availableSlots.forEach(slot => {
       const dateKey = new Date(slot).toLocaleDateString('uk-UA', {
@@ -109,40 +94,28 @@ router.get('/slots/:psychologistId', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Get slots error:', err);
-    console.error('Error details:', {
-      message: err.message,
-      code: err.code,
-      meta: err.meta,
-      stack: err.stack,
-    });
     res.status(500).json({
       msg: 'Server Error',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
   }
 });
-
-// POST /api/appointments - Create new appointment
 router.post('/', auth, async (req, res) => {
   try {
     const { psychologistId, appointmentDateTime } = req.body;
 
     if (!psychologistId || !appointmentDateTime) {
-      return res
-        .status(400)
-        .json({
-          msg: 'Psychologist ID and appointment date/time are required',
-        });
+      return res.status(400).json({
+        msg: 'Psychologist ID and appointment date/time are required',
+      });
     }
 
-    // Verify user is a patient
     if (req.user.role !== 'patient') {
       return res
         .status(403)
         .json({ msg: 'Only patients can book appointments' });
     }
 
-    // Parse psychologistId once
     const parsedPsychologistId = Number.parseInt(String(psychologistId), 10);
     if (Number.isNaN(parsedPsychologistId)) {
       return res.status(400).json({ msg: 'Invalid psychologist ID' });
@@ -150,7 +123,6 @@ router.post('/', auth, async (req, res) => {
 
     const appointmentDate = new Date(appointmentDateTime);
 
-    // Verify psychologist exists and is approved
     const psychologist = await prisma.psychologists.findFirst({
       where: {
         id: parsedPsychologistId,
@@ -165,7 +137,6 @@ router.post('/', auth, async (req, res) => {
       return res.status(404).json({ msg: 'Psychologist not found' });
     }
 
-    // Check if slot is already taken
     const existingAppointment = await prisma.appointments.findFirst({
       where: {
         psychologistId: parsedPsychologistId,
@@ -180,12 +151,10 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ msg: 'This time slot is already booked' });
     }
 
-    // Verify the slot is in the future
     if (appointmentDate <= new Date()) {
       return res.status(400).json({ msg: 'Appointment must be in the future' });
     }
 
-    // Create appointment
     const appointment = await prisma.appointments.create({
       data: {
         psychologistId: parsedPsychologistId,
@@ -215,7 +184,6 @@ router.post('/', auth, async (req, res) => {
       },
     });
 
-    // Send email notification to psychologist
     try {
       await sendAppointmentNotificationEmail({
         psychologistEmail: psychologist.Users.email,
@@ -228,7 +196,6 @@ router.post('/', auth, async (req, res) => {
         'Failed to send appointment notification email:',
         emailError
       );
-      // Don't fail the request if email fails
     }
 
     res.status(201).json({
@@ -244,20 +211,12 @@ router.post('/', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Create appointment error:', err);
-    console.error('Error details:', {
-      message: err.message,
-      code: err.code,
-      meta: err.meta,
-      stack: err.stack,
-    });
     res.status(500).json({
       msg: 'Server Error',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
   }
 });
-
-// GET /api/appointments/my - Get current user's appointments (for patients)
 router.get('/my', auth, async (req, res) => {
   try {
     if (req.user.role !== 'patient') {
@@ -291,15 +250,12 @@ router.get('/my', auth, async (req, res) => {
 
     const now = new Date();
 
-    // Separate into active and archived
-    // Active: future appointments with status 'scheduled'
     const active = appointments.filter(
       apt =>
         apt.Psychologists &&
         new Date(apt.appointmentDateTime) >= now &&
         apt.status === 'scheduled'
     );
-    // Archived: past appointments or appointments with status other than 'scheduled'
     const archived = appointments.filter(
       apt =>
         apt.Psychologists &&
@@ -340,13 +296,7 @@ router.get('/my', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Get my appointments error:', err);
-    console.error('Error details:', {
-      message: err.message,
-      code: err.code,
-      meta: err.meta,
-    });
 
-    // Check if it's a Prisma error about missing model
     if (err.message && err.message.includes('appointments')) {
       return res.status(500).json({
         msg: 'Appointments table not found. Please run database migration.',
@@ -360,8 +310,6 @@ router.get('/my', auth, async (req, res) => {
     });
   }
 });
-
-// GET /api/appointments/psychologist - Get psychologist's appointments
 router.get('/psychologist', auth, async (req, res) => {
   try {
     if (req.user.role !== 'psychologist') {
@@ -370,7 +318,6 @@ router.get('/psychologist', auth, async (req, res) => {
         .json({ msg: 'Only psychologists can view their appointments' });
     }
 
-    // Get psychologist record
     const psychologist = await prisma.psychologists.findFirst({
       where: {
         userId: req.user.id,
@@ -401,7 +348,6 @@ router.get('/psychologist', auth, async (req, res) => {
       },
     });
 
-    // Group appointments by date
     const appointmentsByDate = {};
     appointments.forEach(apt => {
       const dateKey = new Date(apt.appointmentDateTime).toLocaleDateString(
@@ -434,13 +380,7 @@ router.get('/psychologist', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Get psychologist appointments error:', err);
-    console.error('Error details:', {
-      message: err.message,
-      code: err.code,
-      meta: err.meta,
-    });
 
-    // Check if it's a Prisma error about missing model
     if (err.message && err.message.includes('appointments')) {
       return res.status(500).json({
         msg: 'Appointments table not found. Please run database migration.',

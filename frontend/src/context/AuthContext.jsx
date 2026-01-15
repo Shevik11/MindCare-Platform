@@ -22,7 +22,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Setup axios interceptor to add token to requests
   useEffect(() => {
     const requestInterceptor = axios.interceptors.request.use(
       config => {
@@ -39,28 +38,21 @@ export const AuthProvider = ({ children }) => {
 
     const responseInterceptor = axios.interceptors.response.use(
       response => {
-        // If response includes a new token (from /api/auth/me or /api/auth/refresh), update it automatically
         if (response.data?.token) {
           const newToken = response.data.token;
           const currentToken = localStorage.getItem('auth_token');
 
-          // Only update if token is different to avoid unnecessary updates
           if (newToken !== currentToken) {
             localStorage.setItem('auth_token', newToken);
             setToken(newToken);
             axios.defaults.headers.common['Authorization'] =
               `Bearer ${newToken}`;
-            console.log(
-              'Token refreshed automatically from:',
-              response.config.url
-            );
           }
         }
         return response;
       },
       error => {
         if (error.response?.status === 401) {
-          // Token expired or invalid, clear auth state
           localStorage.removeItem('auth_token');
           localStorage.removeItem('auth_user');
           setToken(null);
@@ -77,7 +69,6 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // Load user data from server if token exists
   useEffect(() => {
     const loadUserData = async () => {
       const storedToken = localStorage.getItem('auth_token');
@@ -85,12 +76,10 @@ export const AuthProvider = ({ children }) => {
 
       if (storedToken) {
         setToken(storedToken);
-        // Set Authorization header before making the request
         axios.defaults.headers.common['Authorization'] =
           `Bearer ${storedToken}`;
 
         try {
-          // Load user data from server to ensure it's up to date
           const response = await axios.get('/api/auth/me');
           const userData = response.data;
           const userObj = {
@@ -104,19 +93,14 @@ export const AuthProvider = ({ children }) => {
           setUser(userObj);
           localStorage.setItem('auth_user', JSON.stringify(userObj));
 
-          // If server returns a new token, update it (automatic token refresh)
           if (userData.token && userData.token !== storedToken) {
             setToken(userData.token);
             localStorage.setItem('auth_token', userData.token);
             axios.defaults.headers.common['Authorization'] =
               `Bearer ${userData.token}`;
-            console.log('Token refreshed automatically');
           }
-
-          console.log('User data loaded from server:', userObj);
         } catch (error) {
           console.error('Failed to load user data:', error);
-          // If token is invalid, clear it
           if (error.response?.status === 401) {
             localStorage.removeItem('auth_token');
             localStorage.removeItem('auth_user');
@@ -124,18 +108,15 @@ export const AuthProvider = ({ children }) => {
             setUser(null);
             delete axios.defaults.headers.common['Authorization'];
           } else if (storedUser) {
-            // Fallback to stored user if server request fails (e.g., network error)
             try {
               const parsedUser = JSON.parse(storedUser);
               setUser(parsedUser);
-              console.log('Using stored user data:', parsedUser);
             } catch {
               setUser(null);
             }
           }
         }
       } else if (storedUser) {
-        // If no token but user exists in storage, clear it
         localStorage.removeItem('auth_user');
         setUser(null);
       }
@@ -194,16 +175,11 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
-  // Periodically refresh token if user is authenticated
-  // Token is automatically refreshed on every /api/auth/me request, but we also
-  // refresh it periodically to ensure it stays fresh even if user is inactive
   useEffect(() => {
-    // Check if user is authenticated (has both token and user)
     if (!token || !user) {
       return;
     }
 
-    // This is a backup - primary refresh happens automatically on /api/auth/me requests
     const refreshInterval = setInterval(
       async () => {
         try {
@@ -214,12 +190,9 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('auth_token', newToken);
             axios.defaults.headers.common['Authorization'] =
               `Bearer ${newToken}`;
-            console.log('Token refreshed periodically (24h interval)');
           }
         } catch (error) {
           console.error('Failed to refresh token periodically:', error);
-          // If refresh fails, don't clear auth - token might still be valid
-          // Only clear if it's a 401
           if (error.response?.status === 401) {
             localStorage.removeItem('auth_token');
             localStorage.removeItem('auth_user');
@@ -230,7 +203,7 @@ export const AuthProvider = ({ children }) => {
         }
       },
       24 * 60 * 60 * 1000
-    ); // 24 hours in milliseconds
+    );
 
     return () => clearInterval(refreshInterval);
   }, [token, user]);

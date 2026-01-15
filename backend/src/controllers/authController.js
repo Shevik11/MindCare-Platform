@@ -1,13 +1,23 @@
-const express = require('express');
-const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('../db/db');
-const auth = require('../middleware/auth');
-const upload = require('../middleware/upload');
-const uploadQualification = upload.uploadQualification;
+const prisma = require('../config/database');
 
-router.post('/register', async (req, res) => {
+const generateToken = user => {
+  const payload = {
+    user: {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    },
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: '7d',
+  });
+};
+
+const register = async (req, res) => {
   const {
     email,
     password,
@@ -20,8 +30,10 @@ router.post('/register', async (req, res) => {
     price,
   } = req.body;
   try {
+    // Only check email existence, not full user data
     const existingUser = await prisma.users.findUnique({
       where: { email },
+      select: { id: true },
     });
     if (existingUser)
       return res.status(400).json({ msg: 'User already exists' });
@@ -51,6 +63,13 @@ router.post('/register', async (req, res) => {
           },
         }),
       },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+      },
     });
 
     const payload = {
@@ -62,22 +81,29 @@ router.post('/register', async (req, res) => {
         lastName: user.lastName,
       },
     };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: '7d',
-    });
+    const token = generateToken(user);
 
     res.json({ token, user: payload.user });
   } catch (err) {
     console.error('Registration error:', err.message);
     res.status(500).json({ msg: 'Server error' });
   }
-});
+};
 
-router.post('/login', async (req, res) => {
+const login = async (req, res) => {
   const { email, password } = req.body;
   try {
+    // Only select necessary fields for authentication
     const user = await prisma.users.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+      },
     });
     if (!user) {
       return res.status(400).json({ msg: 'Invalid credentials' });
@@ -97,64 +123,16 @@ router.post('/login', async (req, res) => {
         lastName: user.lastName,
       },
     };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: '7d',
-    });
+    const token = generateToken(user);
 
     res.json({ token, user: payload.user });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ msg: 'Server error' });
   }
-});
-
-router.put('/settings/email-notifications', auth, async (req, res) => {
-  try {
-    const { emailNotifications } = req.body;
-
-    if (typeof emailNotifications !== 'boolean') {
-      return res
-        .status(400)
-        .json({ error: 'emailNotifications must be a boolean' });
-    }
-
-    const updatedUser = await prisma.users.update({
-      where: { id: req.user.id },
-      data: { emailNotifications },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        photoUrl: true,
-        emailNotifications: true,
-      },
-    });
-
-    res.json(updatedUser);
-  } catch (err) {
-    console.error('Error updating email notifications settings:', err);
-    res.status(500).json({ error: 'Server Error' });
-  }
-});
-
-const generateToken = user => {
-  const payload = {
-    user: {
-      id: user.id,
-      role: user.role,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-    },
-  };
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: '7d',
-  });
 };
 
-router.get('/me', auth, async (req, res) => {
+const getMe = async (req, res) => {
   try {
     const user = await prisma.users.findUnique({
       where: { id: req.user.id },
@@ -215,9 +193,9 @@ router.get('/me', auth, async (req, res) => {
     console.error('Get me error:', err.message);
     res.status(500).json({ msg: 'Server Error' });
   }
-});
+};
 
-router.post('/refresh', auth, async (req, res) => {
+const refreshToken = async (req, res) => {
   try {
     const user = await prisma.users.findUnique({
       where: { id: req.user.id },
@@ -241,110 +219,138 @@ router.post('/refresh', auth, async (req, res) => {
     console.error('Refresh token error:', err.message);
     res.status(500).json({ msg: 'Server Error' });
   }
-});
+};
 
-router.post(
-  '/register-psychologist',
-  uploadQualification.single('qualificationDocument'),
-  async (req, res) => {
-    try {
-      const {
+const updateEmailNotifications = async (req, res) => {
+  try {
+    const { emailNotifications } = req.body;
+
+    if (typeof emailNotifications !== 'boolean') {
+      return res
+        .status(400)
+        .json({ error: 'emailNotifications must be a boolean' });
+    }
+
+    const updatedUser = await prisma.users.update({
+      where: { id: req.user.id },
+      data: { emailNotifications },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        photoUrl: true,
+        emailNotifications: true,
+      },
+    });
+
+    res.json(updatedUser);
+  } catch (err) {
+    console.error('Error updating email notifications settings:', err);
+    res.status(500).json({ error: 'Server Error' });
+  }
+};
+
+const registerPsychologist = async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      specialization,
+      experience,
+      bio,
+      price,
+    } = req.body;
+
+    if (!email || !password || !firstName || !lastName) {
+      return res.status(400).json({ msg: 'Missing required fields' });
+    }
+
+    if (req.file === null || req.file === undefined) {
+      return res
+        .status(400)
+        .json({ msg: 'Qualification document is required' });
+    }
+
+    const existingUser = await prisma.users.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingUser)
+      return res.status(400).json({ msg: 'User already exists' });
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const qualificationDocumentUrl = `/uploads/qualifications/${req.file.filename}`;
+
+    const user = await prisma.users.create({
+      data: {
         email,
-        password,
+        password: hashedPassword,
+        role: 'psychologist',
         firstName,
         lastName,
-        specialization,
-        experience,
-        bio,
-        price,
-      } = req.body;
-
-      if (!email || !password || !firstName || !lastName) {
-        return res.status(400).json({ msg: 'Missing required fields' });
-      }
-
-      if (req.file === null || req.file === undefined) {
-        return res
-          .status(400)
-          .json({ msg: 'Qualification document is required' });
-      }
-
-      const existingUser = await prisma.users.findUnique({
-        where: { email },
-      });
-      if (existingUser)
-        return res.status(400).json({ msg: 'User already exists' });
-
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-
-      const qualificationDocumentUrl = `/uploads/qualifications/${req.file.filename}`;
-
-      const user = await prisma.users.create({
-        data: {
-          email,
-          password: hashedPassword,
-          role: 'psychologist',
-          firstName,
-          lastName,
-          Psychologists: {
-            create: {
-              specialization,
-              experience: experience ? Number.parseInt(experience) : 0,
-              bio,
-              price: price ? Number.parseFloat(price) : 0,
-              status: 'pending',
-              qualificationDocument: qualificationDocumentUrl,
-              QualificationDocuments: {
-                create: {
-                  filename: req.file.originalname,
-                  fileUrl: qualificationDocumentUrl,
-                  fileSize: req.file.size,
-                  isVerified: false,
-                },
+        Psychologists: {
+          create: {
+            specialization,
+            experience: experience ? Number.parseInt(experience) : 0,
+            bio,
+            price: price ? Number.parseFloat(price) : 0,
+            status: 'pending',
+            qualificationDocument: qualificationDocumentUrl,
+            QualificationDocuments: {
+              create: {
+                filename: req.file.originalname,
+                fileUrl: qualificationDocumentUrl,
+                fileSize: req.file.size,
+                isVerified: false,
               },
             },
           },
         },
-      });
+      },
+    });
 
-      const payload = {
-        user: {
-          id: user.id,
-          role: user.role,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-        },
-      };
-      const token = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: '1h',
-      });
+    const payload = {
+      user: {
+        id: user.id,
+        role: user.role,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: '1h',
+    });
 
-      res.json({
-        token,
-        user: payload.user,
-        message:
-          'Registration completed successfully. Your profile is pending administrator approval.',
-      });
-    } catch (err) {
-      console.error('Psychologist registration error:', err.message);
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res
-          .status(400)
-          .json({ msg: 'File too large. Maximum size is 10MB' });
-      }
-      if (err.message.includes('Only PDF and image files')) {
-        return res.status(400).json({
-          msg: 'Only PDF and image files (JPEG, PNG, GIF) are allowed',
-        });
-      }
-      res.status(500).json({ msg: 'Server error' });
+    res.json({
+      token,
+      user: payload.user,
+      message:
+        'Registration completed successfully. Your profile is pending administrator approval.',
+    });
+  } catch (err) {
+    console.error('Psychologist registration error:', err.message);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res
+        .status(400)
+        .json({ msg: 'File too large. Maximum size is 10MB' });
     }
+    if (err.message.includes('Only PDF and image files')) {
+      return res.status(400).json({
+        msg: 'Only PDF and image files (JPEG, PNG, GIF) are allowed',
+      });
+    }
+    res.status(500).json({ msg: 'Server error' });
   }
-);
+};
 
-router.post('/upload-photo', auth, upload.single('photo'), async (req, res) => {
+const uploadPhoto = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ msg: 'No file uploaded' });
@@ -370,65 +376,60 @@ router.post('/upload-photo', auth, upload.single('photo'), async (req, res) => {
     }
     res.status(500).json({ msg: 'Server Error' });
   }
-});
+};
 
-router.post(
-  '/upload-qualification',
-  auth,
-  uploadQualification.single('qualificationDocument'),
-  async (req, res) => {
-    try {
-      if (req.user.role !== 'psychologist') {
-        return res.status(403).json({
-          msg: 'Only psychologists can upload qualification documents',
-        });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ msg: 'No file uploaded' });
-      }
-
-      const qualificationDocumentUrl = `/uploads/qualifications/${req.file.filename}`;
-
-      const psychologist = await prisma.psychologists.findFirst({
-        where: { userId: req.user.id },
+const uploadQualification = async (req, res) => {
+  try {
+    if (req.user.role !== 'psychologist') {
+      return res.status(403).json({
+        msg: 'Only psychologists can upload qualification documents',
       });
-
-      if (!psychologist) {
-        return res.status(404).json({ msg: 'Psychologist profile not found' });
-      }
-
-      const document = await prisma.qualificationDocument.create({
-        data: {
-          filename: req.file.originalname,
-          fileUrl: qualificationDocumentUrl,
-          fileSize: req.file.size,
-          isVerified: false,
-          psychologistId: psychologist.id,
-        },
-      });
-
-      res.json({
-        id: document.id,
-        filename: document.filename,
-        fileUrl: document.fileUrl,
-        fileSize: document.fileSize,
-        isVerified: document.isVerified,
-        uploadedAt: document.uploadedAt,
-      });
-    } catch (err) {
-      console.error('Upload qualification error:', err);
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res
-          .status(400)
-          .json({ msg: 'File too large. Maximum size is 10MB' });
-      }
-      res.status(500).json({ msg: 'Server Error' });
     }
-  }
-);
 
-router.delete('/qualification/:id', auth, async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ msg: 'No file uploaded' });
+    }
+
+    const qualificationDocumentUrl = `/uploads/qualifications/${req.file.filename}`;
+
+    const psychologist = await prisma.psychologists.findFirst({
+      where: { userId: req.user.id },
+    });
+
+    if (!psychologist) {
+      return res.status(404).json({ msg: 'Psychologist profile not found' });
+    }
+
+    const document = await prisma.qualificationDocument.create({
+      data: {
+        filename: req.file.originalname,
+        fileUrl: qualificationDocumentUrl,
+        fileSize: req.file.size,
+        isVerified: false,
+        psychologistId: psychologist.id,
+      },
+    });
+
+    res.json({
+      id: document.id,
+      filename: document.filename,
+      fileUrl: document.fileUrl,
+      fileSize: document.fileSize,
+      isVerified: document.isVerified,
+      uploadedAt: document.uploadedAt,
+    });
+  } catch (err) {
+    console.error('Upload qualification error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res
+        .status(400)
+        .json({ msg: 'File too large. Maximum size is 10MB' });
+    }
+    res.status(500).json({ msg: 'Server Error' });
+  }
+};
+
+const deleteQualification = async (req, res) => {
   try {
     if (req.user.role !== 'psychologist') {
       return res
@@ -466,6 +467,16 @@ router.delete('/qualification/:id', auth, async (req, res) => {
     console.error('Delete qualification error:', err);
     res.status(500).json({ msg: 'Server Error' });
   }
-});
+};
 
-module.exports = router;
+module.exports = {
+  register,
+  login,
+  getMe,
+  refreshToken,
+  updateEmailNotifications,
+  registerPsychologist,
+  uploadPhoto,
+  uploadQualification,
+  deleteQualification,
+};
