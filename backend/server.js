@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -17,14 +16,12 @@ app.use('/api/articles', require('./routers/articleRoutes'));
 app.use('/api/admin', require('./routers/adminRoutes'));
 app.use('/api/appointments', require('./routers/appointmentRoutes'));
 
-// Serve uploaded files
 app.use('/uploads', express.static('uploads'));
 
 app.get('/', (req, res) => res.send('API Running'));
 
 const PORT = process.env.PORT || 5000;
 
-// Connect to database and start server
 async function startServer() {
   try {
     await prisma.$connect();
@@ -39,7 +36,6 @@ async function startServer() {
 
 startServer();
 
-// Graceful shutdown
 process.on('beforeExit', async () => {
   await prisma.$disconnect();
 });
