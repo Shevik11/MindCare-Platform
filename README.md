@@ -140,8 +140,7 @@ The frontend calls all APIs through `http://localhost:5000` (the gateway). No fr
 | `/profile`                     | User profile & settings              |
 | `/my-appointments`             | Patient appointment history          |
 | `/psychologist/appointments`   | Psychologist schedule                |
-| `/articles`                    | Published articles                   |
-| `/articles/:id`                | Article detail                       |
+| `/article/:id`                 | Article detail                       |
 | `/my-articles`                 | Psychologist's own articles          |
 | `/admin`                       | Admin panel (admin only)             |
 
