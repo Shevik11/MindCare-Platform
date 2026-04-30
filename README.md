@@ -90,7 +90,7 @@ EMAIL_PORT=587
 EMAIL_USER=user@example.com
 EMAIL_PASS=password
 EMAIL_FROM=noreply@example.com
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:3000
 
 # Optional — custom service ports
 PORT=5000
@@ -124,7 +124,7 @@ npm run prisma:studio
 ```bash
 cd frontend
 npm install
-npm run dev     # http://localhost:5173
+npm run dev     # http://localhost:3000
 ```
 
 The frontend calls all APIs through `http://localhost:5000` (the gateway). No frontend changes are needed when scaling individual services.

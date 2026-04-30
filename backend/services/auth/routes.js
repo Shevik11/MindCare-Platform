@@ -7,16 +7,16 @@ const auth = require('../../shared/middleware/auth');
 const upload = require('../../shared/middleware/upload');
 const uploadQualification = upload.uploadQualification;
 
-// POST /register
+// POST /register — patients only. Psychologists use /register-psychologist. Admins: /api/admin/create-admin or scripts/createAdmin.js
 router.post('/register', async (req, res) => {
-  const { email, password, role, firstName, lastName, specialization, experience, bio, price } = req.body;
+  const { email, password, firstName, lastName } = req.body;
   try {
     const existingUser = await prisma.users.findUnique({ where: { email } });
     if (existingUser) return res.status(400).json({ msg: 'User already exists' });
 
-    const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
-    const userRole = role || 'patient';
+    const userRole = 'patient';
 
+    const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
     const user = await prisma.users.create({
       data: {
         email,
@@ -24,18 +24,6 @@ router.post('/register', async (req, res) => {
         role: userRole,
         firstName,
         lastName,
-        ...(userRole === 'psychologist' && {
-          Psychologists: {
-            create: {
-              specialization,
-              experience: experience ? Number.parseInt(experience) : 0,
-              bio,
-              price: price ? Number.parseFloat(price) : 0,
-              status: 'pending',
-              qualificationDocument: null,
-            },
-          },
-        }),
       },
     });
 
@@ -165,14 +153,23 @@ router.put('/settings/email-notifications', auth, async (req, res) => {
 // POST /register-psychologist
 router.post('/register-psychologist', uploadQualification.single('qualificationDocument'), async (req, res) => {
   try {
-    const { email, password, firstName, lastName, specialization, experience, bio, price } = req.body;
+    const { email, password, firstName, lastName, specialization, experience, bio, price, role: clientRole } = req.body;
+
+    if (clientRole !== undefined && String(clientRole).trim().toLowerCase() === 'admin') {
+      return res.status(403).json({ msg: 'Invalid role' });
+    }
 
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ msg: 'Missing required fields' });
     }
+    if (!specialization || !String(specialization).trim()) {
+      return res.status(400).json({ msg: 'Specialization is required' });
+    }
     if (!req.file) {
       return res.status(400).json({ msg: 'Qualification document is required' });
     }
+
+    const userRole = 'psychologist';
 
     const existingUser = await prisma.users.findUnique({ where: { email } });
     if (existingUser) return res.status(400).json({ msg: 'User already exists' });
@@ -180,19 +177,28 @@ router.post('/register-psychologist', uploadQualification.single('qualificationD
     const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
     const qualificationDocumentUrl = `/uploads/qualifications/${req.file.filename}`;
 
+    const exp = experience !== undefined && experience !== '' ? Number.parseInt(String(experience), 10) : 0;
+    if (Number.isNaN(exp) || exp < 0) {
+      return res.status(400).json({ msg: 'Invalid experience value' });
+    }
+    const pr = price !== undefined && price !== '' ? Number.parseFloat(String(price)) : 0;
+    if (Number.isNaN(pr) || pr < 0) {
+      return res.status(400).json({ msg: 'Invalid price value' });
+    }
+
     const user = await prisma.users.create({
       data: {
         email,
         password: hashedPassword,
-        role: 'psychologist',
+        role: userRole,
         firstName,
         lastName,
         Psychologists: {
           create: {
-            specialization,
-            experience: experience ? Number.parseInt(experience) : 0,
-            bio,
-            price: price ? Number.parseFloat(price) : 0,
+            specialization: String(specialization).trim(),
+            experience: exp,
+            bio: bio != null ? String(bio) : null,
+            price: pr,
             status: 'pending',
             qualificationDocument: qualificationDocumentUrl,
             QualificationDocuments: {

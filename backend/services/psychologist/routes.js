@@ -2,17 +2,37 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../../shared/db');
 const auth = require('../../shared/middleware/auth');
+const {
+  publicPsychologistWhere,
+  expireTemporaryPsychologistBlocks,
+} = require('../../shared/utils/psychologistPublicAccess');
+
+const INT32_MAX = 2147483647;
+
+function parseRequiredIntId(raw, res) {
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) {
+    res.status(400).json({ msg: 'Invalid psychologist id' });
+    return null;
+  }
+  const id = Number.parseInt(raw, 10);
+  if (id < 1 || id > INT32_MAX) {
+    res.status(400).json({ msg: 'Invalid psychologist id' });
+    return null;
+  }
+  return id;
+}
 
 // GET /
 router.get('/', async (req, res) => {
   try {
+    await expireTemporaryPsychologistBlocks(prisma);
     const psychologists = await prisma.psychologists.findMany({
-      where: { status: 'approved' },
+      where: publicPsychologistWhere(),
       include: {
-        Users: { select: { firstName: true, lastName: true, email: true, role: true, photoUrl: true } },
+        Users: { select: { firstName: true, lastName: true, role: true, photoUrl: true } },
       },
     });
-    const mapped = psychologists.map(({ Users, price, ...rest }) => ({
+    const mapped = psychologists.map(({ Users, price, blockedUntil, blockedPermanently, ...rest }) => ({
       ...rest,
       User: Users || null,
       price: price != null ? parseFloat(price.toString()) : null,
@@ -27,15 +47,19 @@ router.get('/', async (req, res) => {
 // GET /:id
 router.get('/:id', async (req, res) => {
   try {
-    const psychologist = await prisma.psychologists.findUnique({
-      where: { id: parseInt(req.params.id) },
+    const id = parseRequiredIntId(req.params.id, res);
+    if (id == null) return;
+
+    await expireTemporaryPsychologistBlocks(prisma);
+    const psychologist = await prisma.psychologists.findFirst({
+      where: { id, ...publicPsychologistWhere() },
       include: {
-        Users: { select: { firstName: true, lastName: true, email: true, role: true, photoUrl: true } },
+        Users: { select: { firstName: true, lastName: true, role: true, photoUrl: true } },
       },
     });
     if (!psychologist) return res.status(404).json({ msg: 'Psychologist not found' });
 
-    const { Users, price, ...rest } = psychologist;
+    const { Users, price, blockedUntil, blockedPermanently, ...rest } = psychologist;
     res.json({ ...rest, User: Users || null, price: price != null ? parseFloat(price.toString()) : null });
   } catch (err) {
     console.error('Error getting psychologist:', err);
@@ -61,17 +85,19 @@ router.put('/profile', auth, async (req, res) => {
       }
     }
 
-    if (Object.keys(userData).length > 0) {
-      await prisma.users.update({ where: { id: req.user.id }, data: userData });
-    }
-
-    if (req.user.role === 'psychologist' && Object.keys(psychologistData).length > 0) {
-      const existing = await prisma.psychologists.findFirst({ where: { userId: req.user.id } });
-      if (existing) {
-        await prisma.psychologists.update({ where: { id: existing.id }, data: psychologistData });
-      } else {
-        await prisma.psychologists.create({ data: { userId: req.user.id, ...psychologistData } });
-      }
+    if (Object.keys(userData).length > 0 || (req.user.role === 'psychologist' && Object.keys(psychologistData).length > 0)) {
+      await prisma.$transaction(async tx => {
+        if (Object.keys(userData).length > 0) {
+          await tx.users.update({ where: { id: req.user.id }, data: userData });
+        }
+        if (req.user.role === 'psychologist' && Object.keys(psychologistData).length > 0) {
+          await tx.psychologists.upsert({
+            where: { userId: req.user.id },
+            update: psychologistData,
+            create: { userId: req.user.id, ...psychologistData },
+          });
+        }
+      });
     }
 
     res.json({ msg: 'Profile updated' });

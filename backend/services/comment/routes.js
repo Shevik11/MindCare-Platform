@@ -3,6 +3,8 @@ const router = express.Router();
 const prisma = require('../../shared/db');
 const auth = require('../../shared/middleware/auth');
 
+const INT32_MAX = 2147483647;
+
 // GET /psychologist/:id
 router.get('/psychologist/:id', async (req, res) => {
   try {
@@ -24,15 +26,22 @@ router.post('/', auth, async (req, res) => {
   try {
     const { psychologistId, rating, text } = req.body;
 
-    if (!psychologistId || !rating || !text) {
+    if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({ msg: 'Please provide all required fields' });
     }
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({ msg: 'Rating must be between 1 and 5' });
+
+    const pid = Number(psychologistId);
+    if (!Number.isInteger(pid) || pid < 1 || pid > INT32_MAX) {
+      return res.status(400).json({ msg: 'Invalid psychologist ID' });
+    }
+
+    const r = Number(rating);
+    if (!Number.isInteger(r) || r < 1 || r > 5) {
+      return res.status(400).json({ msg: 'Rating must be an integer between 1 and 5' });
     }
 
     const comment = await prisma.comments.create({
-      data: { userId: req.user.id, psychologistId: parseInt(psychologistId), rating: parseInt(rating), text },
+      data: { userId: req.user.id, psychologistId: pid, rating: r, text: text.trim() },
       include: { Users: { select: { firstName: true, lastName: true } } },
     });
 

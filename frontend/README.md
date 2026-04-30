@@ -6,7 +6,7 @@ React 18 + Vite + Chakra UI frontend for the MindCare Platform.
 
 ```bash
 npm install
-npm run dev     # http://localhost:5173
+npm run dev     # http://localhost:3000
 ```
 
 The frontend proxies all API requests to the backend gateway at `http://localhost:5000`. Make sure the backend is running before starting the frontend.

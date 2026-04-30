@@ -20,7 +20,7 @@ const sendArticleNotification = async (recipientEmail, recipientName, article, t
   if (!recipientEmail || !recipientEmail.trim()) return false;
 
   try {
-    const articleUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/article/${article.id}`;
+    const articleUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/article/${article.id}`;
     const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER;
     if (!fromEmail) return false;
 
@@ -78,7 +78,7 @@ const sendArticleRejectionNotification = async (recipientEmail, recipientName, a
   if (!recipientEmail || !recipientEmail.trim()) return false;
 
   try {
-    const articleEditUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/articles/${article.id}/edit`;
+    const articleEditUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/articles/${article.id}/edit`;
     const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER;
     if (!fromEmail) return false;
 

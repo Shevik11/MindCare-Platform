@@ -1,9 +1,9 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 const express = require('express');
-const cors = require('cors');
+const { corsMiddleware } = require('../../shared/corsConfig');
 
 const app = express();
-app.use(cors());
+app.use(corsMiddleware);
 app.use(express.json());
 // No formatDate middleware — admin routes need raw ISO dates for frontend
 app.use('/', require('./routes'));

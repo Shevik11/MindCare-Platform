@@ -204,11 +204,25 @@ router.post('/psychologists/:id/block-temporary', auth, adminAuth, async (req, r
     if (!psychologist) return res.status(404).json({ error: 'Psychologist not found' });
     if (!psychologist.Users) return res.status(404).json({ error: 'User not found for this psychologist' });
 
-    const updatedUser = await prisma.users.update({ where: { id: psychologist.Users.id }, data: { role: 'patient' } });
     const blockUntil = new Date();
     blockUntil.setDate(blockUntil.getDate() + days);
 
-    res.json({ message: `Psychologist blocked temporarily for ${days} days`, blockUntil: blockUntil.toISOString(), user: { id: updatedUser.id, email: updatedUser.email, role: updatedUser.role } });
+    const [updatedUser, updatedPsychologist] = await prisma.$transaction([
+      prisma.users.update({ where: { id: psychologist.Users.id }, data: { role: 'patient' } }),
+      prisma.psychologists.update({
+        where: { id: psychologistId },
+        data: {
+          blockedPermanently: false,
+          blockedUntil: blockUntil,
+        },
+      }),
+    ]);
+
+    res.json({
+      message: `Psychologist blocked temporarily for ${days} days`,
+      blockUntil: updatedPsychologist.blockedUntil.toISOString(),
+      user: { id: updatedUser.id, email: updatedUser.email, role: updatedUser.role },
+    });
   } catch (err) {
     console.error('Error blocking psychologist temporarily:', err);
     res.status(500).json({ error: 'Server Error' });
@@ -225,8 +239,21 @@ router.post('/psychologists/:id/block-permanent', auth, adminAuth, async (req, r
     if (!psychologist) return res.status(404).json({ error: 'Psychologist not found' });
     if (!psychologist.Users) return res.status(404).json({ error: 'User not found for this psychologist' });
 
-    const updatedUser = await prisma.users.update({ where: { id: psychologist.Users.id }, data: { role: 'patient' } });
-    res.json({ message: 'Psychologist blocked permanently', user: { id: updatedUser.id, email: updatedUser.email, role: updatedUser.role } });
+    const [updatedUser, updatedPsychologist] = await prisma.$transaction([
+      prisma.users.update({ where: { id: psychologist.Users.id }, data: { role: 'patient' } }),
+      prisma.psychologists.update({
+        where: { id: psychologistId },
+        data: {
+          blockedPermanently: true,
+          blockedUntil: null,
+        },
+      }),
+    ]);
+    res.json({
+      message: 'Psychologist blocked permanently',
+      user: { id: updatedUser.id, email: updatedUser.email, role: updatedUser.role },
+      psychologist: { id: updatedPsychologist.id, blockedPermanently: updatedPsychologist.blockedPermanently, blockedUntil: updatedPsychologist.blockedUntil },
+    });
   } catch (err) {
     console.error('Error blocking psychologist permanently:', err);
     res.status(500).json({ error: 'Server Error' });
@@ -243,8 +270,21 @@ router.post('/psychologists/:id/unblock', auth, adminAuth, async (req, res) => {
     if (!psychologist) return res.status(404).json({ error: 'Psychologist not found' });
     if (!psychologist.Users) return res.status(404).json({ error: 'User not found for this psychologist' });
 
-    const updatedUser = await prisma.users.update({ where: { id: psychologist.Users.id }, data: { role: 'psychologist' } });
-    res.json({ message: 'Psychologist unblocked', user: { id: updatedUser.id, email: updatedUser.email, role: updatedUser.role } });
+    const [updatedUser, updatedPsychologist] = await prisma.$transaction([
+      prisma.users.update({ where: { id: psychologist.Users.id }, data: { role: 'psychologist' } }),
+      prisma.psychologists.update({
+        where: { id: psychologistId },
+        data: {
+          blockedPermanently: false,
+          blockedUntil: null,
+        },
+      }),
+    ]);
+    res.json({
+      message: 'Psychologist unblocked',
+      user: { id: updatedUser.id, email: updatedUser.email, role: updatedUser.role },
+      psychologist: { id: updatedPsychologist.id, blockedPermanently: updatedPsychologist.blockedPermanently, blockedUntil: updatedPsychologist.blockedUntil },
+    });
   } catch (err) {
     console.error('Error unblocking psychologist:', err);
     res.status(500).json({ error: 'Server Error' });
@@ -280,7 +320,7 @@ router.get('/articles/all', auth, adminAuth, async (req, res) => {
         OR: [
           { title: { contains: searchTerm, mode: 'insensitive' } },
           { description: { contains: searchTerm, mode: 'insensitive' } },
-          { Users: { OR: [{ firstName: { contains: searchTerm, mode: 'insensitive' } }, { lastName: { contains: searchTerm, mode: 'insensitive' } }, { email: { contains: searchTerm, mode: 'insensitive' } }] } },
+          { Users: { is: { OR: [{ firstName: { contains: searchTerm, mode: 'insensitive' } }, { lastName: { contains: searchTerm, mode: 'insensitive' } }, { email: { contains: searchTerm, mode: 'insensitive' } }] } } },
         ],
       };
       if (where.status) {

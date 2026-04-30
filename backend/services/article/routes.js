@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../../shared/db');
 const auth = require('../../shared/middleware/auth');
+const authorizeRoles = require('../../shared/middleware/authorizeRoles');
 const optionalAuth = require('../../shared/middleware/optionalAuth');
 const { uploadArticle } = require('../../shared/middleware/upload');
 const { markdownToHtml, htmlToMarkdown } = require('../../shared/utils/markdown');
@@ -11,7 +12,7 @@ router.get('/', async (req, res) => {
   try {
     const articles = await prisma.articles.findMany({
       where: { status: 'published' },
-      include: { Users: { select: { firstName: true, lastName: true, email: true } } },
+      include: { Users: { select: { firstName: true, lastName: true } } },
       orderBy: { createdAt: 'desc' },
     });
     res.json(articles);
@@ -43,9 +44,17 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
     const article = await prisma.articles.findUnique({
       where: { id: articleId },
-      include: { Users: { select: { firstName: true, lastName: true, email: true } } },
+      include: { Users: { select: { firstName: true, lastName: true } } },
     });
     if (!article) return res.status(404).json({ error: 'Article not found' });
+
+    const user = req.user;
+    const isPublished = article.status === 'published';
+    const isAdmin = user?.role === 'admin';
+    const isAuthor = Boolean(user && article.userId != null && user.id === article.userId);
+    if (!isPublished && !isAdmin && !isAuthor) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
 
     const editMode = req.query.edit === 'true';
     if (editMode && req.user && article.content) {
@@ -156,11 +165,8 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // POST /upload-image
-router.post('/upload-image', auth, uploadArticle.single('image'), async (req, res) => {
+router.post('/upload-image', auth, authorizeRoles('psychologist', 'admin'), uploadArticle.single('image'), async (req, res) => {
   try {
-    if (req.user.role !== 'psychologist' && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     res.json({ imageUrl: `/uploads/articles/${req.file.filename}` });

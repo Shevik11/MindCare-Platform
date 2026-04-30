@@ -1,8 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const { PrismaClientKnownRequestError } = require('@prisma/client/runtime/library');
 const prisma = require('../../shared/db');
 const auth = require('../../shared/middleware/auth');
 const { sendAppointmentNotificationEmail } = require('../../shared/utils/email');
+const {
+  publicPsychologistWhere,
+  expireTemporaryPsychologistBlocks,
+} = require('../../shared/utils/psychologistPublicAccess');
 
 const generateAvailableSlots = () => {
   const slots = [];
@@ -33,8 +38,14 @@ const generateAvailableSlots = () => {
 router.get('/slots/:psychologistId', auth, async (req, res) => {
   try {
     const psychologistId = Number.parseInt(req.params.psychologistId, 10);
+    if (Number.isNaN(psychologistId)) {
+      return res.status(400).json({ msg: 'Invalid psychologist ID' });
+    }
 
-    const psychologist = await prisma.psychologists.findFirst({ where: { id: psychologistId, status: 'approved' } });
+    await expireTemporaryPsychologistBlocks(prisma);
+    const psychologist = await prisma.psychologists.findFirst({
+      where: { id: psychologistId, ...publicPsychologistWhere() },
+    });
     if (!psychologist) return res.status(404).json({ msg: 'Psychologist not found' });
 
     const existingAppointments = await prisma.appointments.findMany({
@@ -76,10 +87,14 @@ router.post('/', auth, async (req, res) => {
     if (Number.isNaN(parsedPsychologistId)) return res.status(400).json({ msg: 'Invalid psychologist ID' });
 
     const appointmentDate = new Date(appointmentDateTime);
+    if (Number.isNaN(appointmentDate.getTime())) {
+      return res.status(400).json({ msg: 'Invalid appointment date/time' });
+    }
     if (appointmentDate <= new Date()) return res.status(400).json({ msg: 'Appointment must be in the future' });
 
+    await expireTemporaryPsychologistBlocks(prisma);
     const psychologist = await prisma.psychologists.findFirst({
-      where: { id: parsedPsychologistId, status: 'approved' },
+      where: { id: parsedPsychologistId, ...publicPsychologistWhere() },
       include: { Users: true },
     });
     if (!psychologist) return res.status(404).json({ msg: 'Psychologist not found' });
@@ -117,6 +132,9 @@ router.post('/', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Create appointment error:', err);
+    if (err instanceof PrismaClientKnownRequestError && err.code === 'P2002') {
+      return res.status(409).json({ msg: 'This time slot is already booked' });
+    }
     res.status(500).json({ msg: 'Server Error', error: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
