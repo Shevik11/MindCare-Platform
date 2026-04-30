@@ -1,6 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 // Upload dirs relative to backend root
 const uploadDirs = {
@@ -31,12 +32,14 @@ const articleStorage = multer.diskStorage({
   },
 });
 
+const QUALIFICATION_FILE_EXT = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.gif']);
+
 const qualificationStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDirs.qualifications),
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const userId = req.user?.id || req.body?.email || 'unknown';
-    cb(null, 'qualification-' + userId + '-' + uniqueSuffix + path.extname(file.originalname));
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = QUALIFICATION_FILE_EXT.has(ext) ? ext : '';
+    cb(null, `qualification-${crypto.randomUUID()}${safeExt}`);
   },
 });
 

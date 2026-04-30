@@ -5,11 +5,23 @@ const auth = require('../../shared/middleware/auth');
 
 const INT32_MAX = 2147483647;
 
+function parsePsychologistRouteId(raw) {
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return null;
+  const id = Number.parseInt(raw, 10);
+  if (id < 1 || id > INT32_MAX) return null;
+  return id;
+}
+
 // GET /psychologist/:id
 router.get('/psychologist/:id', async (req, res) => {
   try {
+    const psychologistId = parsePsychologistRouteId(req.params.id);
+    if (psychologistId == null) {
+      return res.status(400).json({ msg: 'Invalid psychologist ID' });
+    }
+
     const comments = await prisma.comments.findMany({
-      where: { psychologistId: parseInt(req.params.id) },
+      where: { psychologistId },
       include: { Users: { select: { firstName: true, lastName: true } } },
       orderBy: { createdAt: 'desc' },
     });
