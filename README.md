@@ -167,7 +167,7 @@ Utility scripts in `backend/scripts/`:
 cd backend
 node scripts/createAdmin.js          # Create an admin account
 node scripts/resetPassword.js        # Reset a user's password
-node scripts/getUserDetails.js       # Look up a user by email
+node scripts/getUserDetails.js       # Look up a user by ID
 node scripts/findUserByHash.js       # Find user by password hash
 node scripts/updatePsychologistRoles.js  # Fix psychologist role assignments
 ```
