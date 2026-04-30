@@ -1,6 +1,6 @@
 // Script to find user by password hash
 require('dotenv').config();
-const prisma = require('../db/db');
+const prisma = require('../shared/db');
 
 const hash = '$2b$10$3dw81sPthTik66aMOzhaZ.ySCbsx3XO/wo866OjIc96LYcoX89XB6';
 

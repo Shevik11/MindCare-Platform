@@ -13,7 +13,7 @@ const getImageUrl = imageUrl => {
   // If it starts with /uploads/, it's a local file - prepend backend URL
   // This ensures images load correctly regardless of dev server (vite/react-scripts)
   if (imageUrl.startsWith('/uploads/')) {
-    const backendUrl = 'http://localhost:5000';
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     return `${backendUrl}${imageUrl}`;
   }
 

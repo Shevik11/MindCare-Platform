@@ -1,7 +1,7 @@
 // Script to reset a user's password in the database
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
-const prisma = require('../db/db');
+const prisma = require('../shared/db');
 
 async function resetPassword(email, newPassword) {
   try {

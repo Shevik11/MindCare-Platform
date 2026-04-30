@@ -1,7 +1,7 @@
 // Script to create an admin account
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
-const prisma = require('../db/db');
+const prisma = require('../shared/db');
 
 async function createAdmin(email, password, firstName, lastName) {
   // If called from command line (no arguments provided), get args from process.argv
