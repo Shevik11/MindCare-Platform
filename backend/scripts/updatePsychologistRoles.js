@@ -1,6 +1,6 @@
 // Script to update existing psychologists to have 'psychologist' role
 require('dotenv').config();
-const prisma = require('../db/db');
+const prisma = require('../shared/db');
 
 async function updatePsychologistRoles() {
   try {

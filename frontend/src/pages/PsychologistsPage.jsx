@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import getImageUrl from '../utils/imageUrl';
 import { Link } from 'react-router-dom';
 import {
   Box,
@@ -288,7 +289,7 @@ const PsychologistsPage = () => {
                   size="lg"
                   src={
                     p.User?.photoUrl
-                      ? `http://localhost:5000${p.User.photoUrl}`
+                      ? getImageUrl(p.User.photoUrl)
                       : null
                   }
                   mx="auto"

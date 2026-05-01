@@ -1,6 +1,6 @@
 // Script to get user details by ID
 require('dotenv').config();
-const prisma = require('../db/db');
+const prisma = require('../shared/db');
 
 async function getUserDetails(userId) {
   try {
